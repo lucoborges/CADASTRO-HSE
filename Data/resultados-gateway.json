@@ -1,0 +1,4 @@
+{"sucesso":false,"codigoTarefa":"TESTE-MODO-GATEWAY","mensagemErro":"Falha ap\u00F3s 3 tentativas com recupera\u00E7\u00E3o","dataProcessamento":"2026-01-26T16:28:02.4218059Z"}
+{"sucesso":true,"dataProcessamento":"2026-01-26T16:41:36.9854586Z","codigoTarefa":"EXEMPLO-001","codigoProduto":"70260","produto":"MONITOR LCD 24 POLEGADAS","mensagem":"Produto cadastrado com sucesso"}
+{"sucesso":true,"dataProcessamento":"2026-01-26T16:42:05.8485792Z","codigoTarefa":"EXEMPLO-002","codigoProduto":"70261","produto":"TECLADO MEC\u00C2NICO RGB","mensagem":"Produto cadastrado com sucesso"}
+{"sucesso":true,"dataProcessamento":"2026-01-26T16:42:34.7638547Z","codigoTarefa":"EXEMPLO-003","codigoProduto":"70262","produto":"MOUSE GAMER 6400DPI","mensagem":"Produto cadastrado com sucesso"}

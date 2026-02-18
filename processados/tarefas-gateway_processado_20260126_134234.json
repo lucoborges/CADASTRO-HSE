@@ -1,0 +1,29 @@
+[
+  {
+    "requestId": "EXEMPLO-001",
+    "descricao": "MONITOR LCD 24 POLEGADAS",
+    "ncm": "85285210",
+    "custo": 899.90,
+    "Timestamp": "2026-01-26T13:40:17.5441905-03:00",
+    "Prioridade": 1,
+    "Tentativas": 0
+  },
+  {
+    "requestId": "EXEMPLO-002",
+    "descricao": "TECLADO MEC\u00C2NICO RGB",
+    "ncm": "84716090",
+    "custo": 249.90,
+    "Timestamp": "2026-01-26T13:40:17.5537824-03:00",
+    "Prioridade": 1,
+    "Tentativas": 0
+  },
+  {
+    "requestId": "EXEMPLO-003",
+    "descricao": "MOUSE GAMER 6400DPI",
+    "ncm": "84716090",
+    "custo": 129.90,
+    "Timestamp": "2026-01-26T13:40:17.5537842-03:00",
+    "Prioridade": 1,
+    "Tentativas": 0
+  }
+]

@@ -1,0 +1,29 @@
+﻿version: '3.8'
+
+services:
+  hse-automation:
+    build: .
+    image: hse-automation:latest
+    container_name: hse-app
+    volumes:
+      # Mapear diretórios importantes
+      - ./Data:/app/Data
+      - ./logs:/app/logs
+      - ./processados:/app/processados
+      - ./config:/app/config
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=Production
+      - TZ=America/Sao_Paulo
+    # restart: unless-stopped  # Se for serviço contínuo
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - hse-network
+
+networks:
+  hse-network:
+    driver: bridge

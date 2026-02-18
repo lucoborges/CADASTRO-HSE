@@ -1,0 +1,13 @@
+{"Codigo":"PROD-8471-20260123113628","CodigoTarefa":"teste-001","Descricao":"Notebook Teste","Custo":1500,"NCM":"8471.30.00","DataCadastro":"2026-01-23T14:36:28.0542455Z","Modo":"Gateway"}
+{"Codigo":"PROD--20260123155826","CodigoTarefa":"","Descricao":"","Custo":0,"NCM":"","DataCadastro":"2026-01-23T18:58:26.9635941Z","Modo":"Gateway"}
+{"Codigo":"PROD-8471-20260123155838","CodigoTarefa":"test-gateway-001","Descricao":"Notebook Gateway","Custo":2000,"NCM":"8471.30.00","DataCadastro":"2026-01-23T18:58:38.1835643Z","Modo":"Gateway"}
+{"Codigo":"PROD-1234-20260126102926","CodigoTarefa":"TEST-DIRETO-001","Descricao":"Produto Teste Direto","Custo":999.99,"NCM":"1234.56.78","DataCadastro":"2026-01-26T13:29:26.9627039Z","Modo":"Gateway"}
+{"Codigo":"PROD-8471-20260126103030","CodigoTarefa":"INTEGRACAO-TEST-001","Descricao":"Produto Integra\uFFFD\uFFFDo Gateway-HSE","Custo":2750.5,"NCM":"8471.30.00","DataCadastro":"2026-01-26T13:30:30.1277948Z","Modo":"Gateway"}
+{"Codigo":"PROD-1234-20260126103129","CodigoTarefa":"PEDIDO-001","Descricao":"Produto Real","Custo":1500,"NCM":"1234.56.78","DataCadastro":"2026-01-26T13:31:29.3375735Z","Modo":"Gateway"}
+{"Codigo":"PROD-8471-20260126103911","CodigoTarefa":"INTEGRACAO-TEST-001","Descricao":"Produto Integra\uFFFD\uFFFDo Gateway-HSE","Custo":2750.5,"NCM":"8471.30.00","DataCadastro":"2026-01-26T13:39:11.7537375Z","Modo":"Gateway"}
+{"Codigo":"PROD-1234-20260126103921","CodigoTarefa":"TESTE-FORMATO-001","Descricao":"Produto Teste Correto","Custo":1000,"NCM":"1234.56.78","DataCadastro":"2026-01-26T13:39:21.5045149Z","Modo":"Gateway"}
+{"Codigo":"PROD-1234-20260126111217","CodigoTarefa":"TESTE-FORMATO-001","Descricao":"Produto Teste Correto","Custo":1000,"NCM":"1234.56.78","DataCadastro":"2026-01-26T14:12:17.2093162Z","Modo":"Gateway"}
+{"Codigo":"PROD-8528-20260126113423","CodigoTarefa":"TESTE-DIRETO-001","Descricao":"MONITOR TESTE DIRETO","Custo":1500,"NCM":"85285210","DataCadastro":"2026-01-26T14:34:23.6859142Z","Modo":"Gateway"}
+{"Codigo":"PROD-8471-20260126132021","CodigoTarefa":"TESTE-001","Descricao":"PRODUTO TESTE VIA GATEWAY","Custo":1234.56,"NCM":"8471.30.00","DataCadastro":"2026-01-26T16:20:21.5393544Z","Modo":"Gateway"}
+{"Codigo":"PROD-8471-20260126132700","CodigoTarefa":"HTTP-TEST-001","Descricao":"PRODUTO VIA GATEWAY HTTP","Custo":999.99,"NCM":"8471.30.00","DataCadastro":"2026-01-26T16:27:00.2430903Z","Modo":"Gateway"}
+{"Codigo":"PROD-8528-20260126140359","CodigoTarefa":"PEDIDO-001","Descricao":"MONITOR DELL 27 POL 4K","Custo":1899.9,"NCM":"85285210","DataCadastro":"2026-01-26T17:03:59.828311Z","Modo":"Gateway"}

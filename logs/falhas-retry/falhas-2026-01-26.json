@@ -1,0 +1,17 @@
+[
+  {
+    "ProdutoRequest": {
+      "requestId": "TESTE-MODO-GATEWAY",
+      "descricao": "PRODUTO TESTE MODO GATEWAY",
+      "ncm": "8471.30.00",
+      "custo": 1234.56,
+      "Timestamp": "2026-01-26T11:42:48.4078633-03:00",
+      "Prioridade": 1,
+      "Tentativas": 0
+    },
+    "MensagemErro": "Falha ap\u00F3s 3 tentativas com recupera\u00E7\u00E3o",
+    "DataFalha": "2026-01-26T13:28:02.4156594-03:00",
+    "Tentativas": 1,
+    "MotivoFalha": "desconhecido"
+  }
+]

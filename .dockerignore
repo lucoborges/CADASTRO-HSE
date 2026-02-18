@@ -1,0 +1,14 @@
+﻿bin/
+obj/
+.vs/
+.git/
+*.user
+*.suo
+*.db
+logs/
+processados/
+Dockerfile*
+docker-compose*
+.dockerignore
+.env
+*.log
