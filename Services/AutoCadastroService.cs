@@ -27,7 +27,7 @@ namespace HSE.Automation.Services
             public const int DelayEntreConsultasAPI = 3000;
             public const int MaxProdutosPorSessao = 50;
 
-            public const bool SalvarScreenshotsDebug = true;
+            public const bool SalvarScreenshotsDebug = false;
             public const string PastaScreenshots = "Screenshots";
             public const int TempoEsperaCodigo = 5000;
             public const bool _emModoFornecedor = true;

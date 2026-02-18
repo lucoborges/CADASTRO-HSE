@@ -18,7 +18,7 @@ namespace HSE.Automation.Services
             public const int MaxTentativasPorFornecedor = 3;
             public const int DelayEntreTentativas = 2000;
             public const int TimeoutPagina = 30000;
-            public const bool SalvarScreenshotsDebug = true;
+            public const bool SalvarScreenshotsDebug = false;
             public const string PastaScreenshots = "Screenshots/Fornecedores";
         }
 
@@ -454,7 +454,7 @@ namespace HSE.Automation.Services
             public const int MaxTentativasPorFornecedor = 3;
             public const int DelayEntreTentativas = 2000;
             public const int TimeoutPagina = 30000;
-            public const bool SalvarScreenshotsDebug = true;
+            public const bool SalvarScreenshotsDebug = false;
             public const string PastaScreenshots = "Screenshots/Fornecedores";
         }
 
