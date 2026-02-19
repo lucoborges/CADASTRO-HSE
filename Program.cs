@@ -31,13 +31,13 @@ namespace HSE.Automation
             // Banner do sistema atualizado
             Console.WriteLine("╔══════════════════════════════════════════════════════════════════════════════╗");
             Console.WriteLine("║                          🤖 HSE AUTO-CADASTRO v6.0 🤖                        ║");
-            Console.WriteLine("║                Sistema Completo - Produtos + Fornecedores + Clientes         ║"); // ✅ ATUALIZADO
+            Console.WriteLine("║                Sistema Completo - Produtos + Fornecedores + Clientes         ║"); 
             Console.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
 
             Console.WriteLine("\n🎯 INICIANDO SISTEMA COMPLETO...");
             Console.WriteLine("   • Produtos: porta 6001");
             Console.WriteLine("   • Fornecedores: porta 6002");
-            Console.WriteLine("   • Clientes: porta 6003"); // ✅ NOVO
+            Console.WriteLine("   • Clientes: porta 6003");
             Console.WriteLine("   • Pressione Ctrl+C para encerrar\n");
 
             // Configura tratamento de Ctrl+C
@@ -67,7 +67,7 @@ namespace HSE.Automation
         }
         static async Task Log()
         {
-            // O using vai garantir que o Dispose seja chamado no final
+            
             using var logger = new ConsoleFileLogger(@"\\SERVIDOR2\Publico\ALLAN\Logs");
 
             Console.WriteLine("=== INICIANDO APLICAÇÃO ===");
@@ -77,7 +77,7 @@ namespace HSE.Automation
             try
             {
                 Console.WriteLine("Chamando IniciarServicosTriplos...");
-                await IniciarServicosTriplos();  // <--- TODAS as saídas DENTRO deste método serão capturadas
+                await IniciarServicosTriplos();
 
                 Console.WriteLine("Processamento concluído com sucesso!");
             }
@@ -764,7 +764,7 @@ namespace HSE.Automation
         {
             try
             {
-                var timeout = TimeSpan.FromSeconds(46);
+                var timeout = TimeSpan.FromSeconds(50);
                 var cts = new CancellationTokenSource(timeout);
 
                 var task = FornecedorCadastroService.TestarCadastroFornecedor(cnpj);
