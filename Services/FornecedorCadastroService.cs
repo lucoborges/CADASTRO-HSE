@@ -188,8 +188,6 @@ namespace HSE.Automation.Services
                                                 await botaoSalvar.ClickAsync();
 
                                                 // Aguarda um tempo curto e verifica se a página ainda está aberta
-                                                for (int i = 0; i < 10; i++)
-                                                {
                                                     await Task.Delay(500);
 
                                                     // Se a página foi fechada, significa que o cadastro foi processado
@@ -200,7 +198,6 @@ namespace HSE.Automation.Services
                                                         botaoAcionado = true;
                                                         break;
                                                     }
-                                                }
                                             }
                                             while (!novaAba.IsClosed);
                                         }
@@ -623,7 +620,7 @@ namespace HSE.Automation.Services
                                 }
                                 // Procura botão de salvar
                                 Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE SALVAR...");
-                                var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
+                                var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btn btn-primary");
 
                                 if (botaoSalvar != null)
                                 {
@@ -639,23 +636,21 @@ namespace HSE.Automation.Services
                                         {
                                             Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'SALVAR'...");
                                             await botaoSalvar.ClickAsync();
-                                            bool continuar = true;
 
                                             // Aguarda um tempo curto e verifica se a página ainda está aberta
-                                            while (continuar)
-                                            {
-                                                await Task.Delay(500);
+                                            await Task.Delay(500);
 
-                                                // Se a página foi fechada, significa que o cadastro foi processado
-                                                if (novaAba.IsClosed)
-                                                {
+                                             // Se a página foi fechada, significa que o cadastro foi processado
+                                             if (novaAba.IsClosed)
+                                             {
                                                     Console.WriteLine("✅ Página de cadastro fechada - Cadastro processado!");
                                                     cadastroRealizado = true;
                                                     botaoAcionado = true;
-                                                    continuar = false;
-                                                    continue;
-                                                }
-                                                continue;
+                                                    break;
+                                             }
+                                            else
+                                            {
+                                                Console.WriteLine("Página de cadastro ainda aberta, tentando salvar novamente...");
                                             }
                                         }
                                         while (!novaAba.IsClosed);
