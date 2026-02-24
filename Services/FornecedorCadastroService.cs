@@ -152,23 +152,10 @@ namespace HSE.Automation.Services
 
                                 var valorAtual = await campoCnpj.GetAttributeAsync("value");
                                 var outroValor = await campoCnpj.TextContentAsync();
-                                Console.WriteLine($"   Valor atual no campo: {valorAtual}, {outroValor}");
+                                Console.WriteLine($"   Valor atual no campo: {valorAtual}{outroValor}");
                                
                                 
                                     Console.WriteLine("✅ CNPJ preenchido corretamente");
-
-                                    var celular = await novaAba.QuerySelectorAsync("rfCelular_CR, input[name='rfCelular_CR']");
-                                    if (celular != null)
-                                    {
-                                        Console.WriteLine("✅ Campo celular encontrado");
-                                        var valor = (await celular.GetAttributeAsync("value"))?.Trim();
-                                        Console.WriteLine($"   Valor atual no campo: {valor}");
-                                        await celular.FillAsync("");
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine("❌ Campo celular não encontrado");
-                                    }
                                     // Procura botão de salvar
                                     Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE SALVAR...");
                                     var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
@@ -197,7 +184,7 @@ namespace HSE.Automation.Services
                                                 Console.WriteLine("✅ Página de cadastro fechada - Cadastro processado!");
                                                 cadastroRealizado = true;
                                                 botaoAcionado = true;
-                                                break;
+                                                continue;
                                             }
                                         }
                                         while (!novaAba.IsClosed);
@@ -378,6 +365,10 @@ namespace HSE.Automation.Services
                 {
                     Console.WriteLine($"⚠️ Fornecedor cadastrado mas código não capturado");
                     return codigoFornecedor;
+                }
+                else if(botaoAcionado && cadastroRealizado)
+                {
+                    Console.WriteLine($"⚠️ Fornecedor cadastrado, botão acionado, e código não capturado.");
                 }
                 else
                 {
