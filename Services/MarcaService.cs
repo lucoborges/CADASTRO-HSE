@@ -46,7 +46,6 @@ namespace HSE.Automation.Services
                 // PULA marcas problemáticas (exceto se tiver lógica especial)
                 if (_marcasProblematicas.Contains(nomeMarca))
                 {
-                    Console.WriteLine($"⚠️ Ignorando marca problemática: {nomeMarca} (ID: {marca.IdGerado})");
                     continue;
                 }
 

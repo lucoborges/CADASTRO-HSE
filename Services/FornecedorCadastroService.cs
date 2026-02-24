@@ -153,8 +153,8 @@ namespace HSE.Automation.Services
                                 var valorAtual = await campoCnpj.GetAttributeAsync("value");
                                 var outroValor = await campoCnpj.TextContentAsync();
                                 Console.WriteLine($"   Valor atual no campo: {valorAtual}, {outroValor}");
-                                if (!string.IsNullOrEmpty(valorAtual))
-                                {
+                               
+                                
                                     Console.WriteLine("✅ CNPJ preenchido corretamente");
 
                                     var celular = await novaAba.QuerySelectorAsync("rfCelular_CR, input[name='rfCelular_CR']");
@@ -173,50 +173,46 @@ namespace HSE.Automation.Services
                                     Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE SALVAR...");
                                     var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
 
-                                    if (botaoSalvar != null)
+                                if (botaoSalvar != null)
+                                {
+                                    Console.WriteLine("✅ Botão de salvar encontrado");
+
+                                    // Aguarda um pouco antes de clicar
+                                    await Task.Delay(1000);
+
+                                    // Tenta salvar e captura qualquer exceção
+                                    try
                                     {
-                                        Console.WriteLine("✅ Botão de salvar encontrado");
-
-                                        // Aguarda um pouco antes de clicar
-                                        await Task.Delay(1000);
-
-                                        // Tenta salvar e captura qualquer exceção
-                                        try
+                                        do
                                         {
-                                            do
+                                            Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'SALVAR'...");
+                                            await botaoSalvar.ClickAsync();
+
+                                            // Aguarda um tempo curto e verifica se a página ainda está aberta
+                                            await Task.Delay(500);
+
+                                            // Se a página foi fechada, significa que o cadastro foi processado
+                                            if (novaAba.IsClosed)
                                             {
-                                                Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'SALVAR'...");
-                                                await botaoSalvar.ClickAsync();
-
-                                                // Aguarda um tempo curto e verifica se a página ainda está aberta
-                                                    await Task.Delay(500);
-
-                                                    // Se a página foi fechada, significa que o cadastro foi processado
-                                                    if (novaAba.IsClosed)
-                                                    {
-                                                        Console.WriteLine("✅ Página de cadastro fechada - Cadastro processado!");
-                                                        cadastroRealizado = true;
-                                                        botaoAcionado = true;
-                                                        break;
-                                                    }
+                                                Console.WriteLine("✅ Página de cadastro fechada - Cadastro processado!");
+                                                cadastroRealizado = true;
+                                                botaoAcionado = true;
+                                                break;
                                             }
-                                            while (!novaAba.IsClosed);
                                         }
-                                        catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
-                                        {
-                                            Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
-                                            cadastroRealizado = true;
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Console.WriteLine($"⚠️ Erro ao clicar em salvar: {ex.Message}");
-                                        }
+                                        while (!novaAba.IsClosed);
                                     }
-                                    else
+                                    catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
                                     {
-                                        Console.WriteLine("❌ Botão de salvar não encontrado");
+                                        Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
+                                        cadastroRealizado = true;
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"⚠️ Erro ao clicar em salvar: {ex.Message}");
                                     }
                                 }
+
                                 else
                                 {
                                     Console.WriteLine("❌ CNPJ não foi preenchido corretamente");
