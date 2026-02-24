@@ -150,9 +150,9 @@ namespace HSE.Automation.Services
                                 Console.WriteLine($"✅ CNPJ digitado: {cnpjLimpo}");
                                 await Task.Delay(1000);
 
-                                var valorAtual = await campoCnpj.GetAttributeAsync("value");
+                                var valorAtual = (await campoCnpj.GetAttributeAsync("value"))?.Trim();
                                 Console.WriteLine($"   Valor atual no campo: {valorAtual}");
-                                if (valorAtual != null)
+                                if (!string.IsNullOrEmpty(valorAtual))
                                 {
                                     Console.WriteLine("✅ CNPJ preenchido corretamente");
 
@@ -160,7 +160,7 @@ namespace HSE.Automation.Services
                                     if (celular != null)
                                     {
                                         Console.WriteLine("✅ Campo celular encontrado");
-                                        var valor = await celular.GetAttributeAsync("value");
+                                        var valor = (await celular.GetAttributeAsync("value"))?.Trim();
                                         Console.WriteLine($"   Valor atual no campo: {valor}");
                                         await celular.FillAsync("");
                                     }
@@ -582,21 +582,21 @@ namespace HSE.Automation.Services
                                 Console.WriteLine($"✅ CNPJ digitado: {cnpjLimpo}");
                                 await Task.Delay(1000);
 
-                                var valorAtual = await campoCnpj.GetAttributeAsync("value");
+                                var valorAtual = (await campoCnpj.GetAttributeAsync("value"))?.Trim();
                                 Console.WriteLine($"   Valor atual no campo: {valorAtual}");
 
                                 var Inscricao = await novaAba.QuerySelectorAsync("rfInscricaoEstadual, input[name='rfInscricaoEstadual']");
-                                if (Inscricao != null && inscricaoEstadual != null && inscricaoEstadual != "" && inscricaoEstadual != " ")
+                                if (Inscricao != null && !string.IsNullOrEmpty(inscricaoEstadual))
                                 {
                                     Console.WriteLine("✅ Campo rfInscricaoEstadual encontrado");
-                                    var valor = await Inscricao.GetAttributeAsync("value");
-                                    Console.WriteLine($"   Valor atual no campo: {valorAtual}");
                                     await Inscricao.FillAsync("");
                                     foreach (char c in inscricaoEstadual)
                                     {
                                         await Inscricao.PressAsync(c.ToString());
                                         await Task.Delay(50);
                                     }
+                                    var valor = (await Inscricao.GetAttributeAsync("value"))?.Trim();
+                                    Console.WriteLine($"   Valor atual no campo: {valorAtual}");
                                 }
                                 else
                                 {
