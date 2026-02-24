@@ -150,12 +150,9 @@ namespace HSE.Automation.Services
                                 Console.WriteLine($"✅ CNPJ digitado: {cnpjLimpo}");
                                 await Task.Delay(1000);
 
-                                var razaoSocial = await novaAba.QuerySelectorAsync("#dsRazaoSocial");
-                                var razao = (await razaoSocial.GetAttributeAsync("value"))?.Trim();
-                                Console.WriteLine($"   Razão Social preenchida automaticamente: {razao}");
-
-                                var valorAtual = (await campoCnpj.GetAttributeAsync("value"))?.Trim();
-                                Console.WriteLine($"   Valor atual no campo: {valorAtual}");
+                                var valorAtual = await campoCnpj.GetAttributeAsync("value");
+                                var outroValor = await campoCnpj.TextContentAsync();
+                                Console.WriteLine($"   Valor atual no campo: {valorAtual}, {outroValor}");
                                 if (!string.IsNullOrEmpty(valorAtual))
                                 {
                                     Console.WriteLine("✅ CNPJ preenchido corretamente");

@@ -778,42 +778,29 @@ namespace HSE.Automation.Services
                     return false;
                 }
 
+                var tasks = new List<Task>
+                { 
                 // Descrição
-                await PreencherCampoSeletor(paginaCadastro,"input[name='descricao'], #descricao", produto.Descricao);
-
+                PreencherCampoSeletor(paginaCadastro,"input[name='descricao'], #descricao", produto.Descricao),
                 // NCM - COM SELEÇÃO
-                bool ncmOk = await PreencherNCMComSelecao(produto.NCM, paginaCadastro);
-                if (!ncmOk)
-                {
-                    Console.WriteLine("   ⚠️ Continuando mesmo com falha no NCM");
-                }
-
+                PreencherNCMComSelecao(produto.NCM, paginaCadastro),
                 // Custo Unitário
-                await PreencherCampoSeletor(paginaCadastro,"input[name='vlPrecoCompra'], #vlPrecoCompra", produto.Custo.ToString("F2"));
-
+                PreencherCampoSeletor(paginaCadastro,"input[name='vlPrecoCompra'], #vlPrecoCompra", produto.Custo.ToString("F2")),
                 // Custo Total
-                await PreencherCampoSeletor(paginaCadastro,"input[name='vlUltimoCusto'], #vlUltimoCusto", produto.Custo.ToString("F2"));
-
+                PreencherCampoSeletor(paginaCadastro,"input[name='vlUltimoCusto'], #vlUltimoCusto", produto.Custo.ToString("F2")),
                 // Unidade
-                await SelecionarOpcao("select[name='rfUnidade'], #rfUnidade", "PC", paginaCadastro);
-
+                SelecionarOpcao("select[name='rfUnidade'], #rfUnidade", "PC", paginaCadastro),
                 // Grupo
-                await SelecionarOpcao("select[name='cdGrupo'], #cdGrupo", grupoId, paginaCadastro);
-
-                try
-                {
-                    await PreencherCampoMarca(produto.Descricao, paginaCadastro, marcasDisponiveis);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"   ⚠️ Erro no campo de marca (ignorado): {ex.Message}");
-                    // Não falha o processo por causa da marca
-                }
+                SelecionarOpcao("select[name='cdGrupo'], #cdGrupo", grupoId, paginaCadastro),
+                PreencherCampoMarca(produto.Descricao, paginaCadastro, marcasDisponiveis),
+                // Não falha o processo por causa da marca
                 // ICMS%
-                await PreencherCampoSeletor(paginaCadastro,"input[name='rfAliquota'], #rfAliquota", "17,00");
-
+                PreencherCampoSeletor(paginaCadastro,"input[name='rfAliquota'], #rfAliquota", "17,00"),
                 // CST
-                await SelecionarOpcao("select[name='TRIBUTACAO'], #TRIBUTACAO", "00", paginaCadastro);
+                SelecionarOpcao("select[name='TRIBUTACAO'], #TRIBUTACAO", "00", paginaCadastro)
+                };
+
+                await Task.WhenAll(tasks);
 
                 // 1. Click on the "Reforma Tributária" tab
                 Console.WriteLine("   🏛️ Acessando aba 'Reforma Tributária'...");
