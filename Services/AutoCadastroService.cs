@@ -781,32 +781,26 @@ namespace HSE.Automation.Services
                     return false;
                 }
 
-                var tasks = new List<Task>
-                {
 
-                
                 // Descrição
-                PreencherCampoSeletor(paginaCadastro,"input[name='descricao'], #descricao", produto.Descricao),
+                await PreencherCampoSeletor(paginaCadastro, "input[name='descricao'], #descricao", produto.Descricao);
 
                 // NCM - COM SELEÇÃO
-                PreencherNCMComSelecao(produto.NCM, paginaCadastro),
-
-
+                await PreencherNCMComSelecao(produto.NCM, paginaCadastro);
 
                 // Unidade
-                SelecionarOpcao("select[name='rfUnidade'], #rfUnidade", "PC", paginaCadastro),
+                await SelecionarOpcao("select[name='rfUnidade'], #rfUnidade", "PC", paginaCadastro);
 
                 // Grupo
-                SelecionarOpcao("select[name='cdGrupo'], #cdGrupo", grupoId, paginaCadastro),
+                await SelecionarOpcao("select[name='cdGrupo'], #cdGrupo", grupoId, paginaCadastro);
 
-                PreencherCampoMarca(produto.Descricao, paginaCadastro, marcasDisponiveis),
+                await PreencherCampoMarca(produto.Descricao, paginaCadastro, marcasDisponiveis);
                 // ICMS
-                PreencherCampoSeletor(paginaCadastro,"input[name='rfAliquota'], #rfAliquota", "17,00"),
+                await PreencherCampoSeletor(paginaCadastro, "input[name='rfAliquota'], #rfAliquota", "17,00");
 
                 // CST
-                SelecionarOpcao("select[name='TRIBUTACAO'], #TRIBUTACAO", "00", paginaCadastro)
-                };
-                await Task.WhenAll(tasks);
+                await SelecionarOpcao("select[name='TRIBUTACAO'], #TRIBUTACAO", "00", paginaCadastro);
+                
                 // Custo Unitário
                 await PreencherCampoSeletor(paginaCadastro, "input[name='vlPrecoCompra'], #vlPrecoCompra", produto.Custo.ToString("F2"));
 
