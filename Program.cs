@@ -828,7 +828,7 @@ namespace HSE.Automation
             _originalError = Console.Error;
 
             // Cria o arquivo de log com data no nome
-            var logFile = Path.Combine(logDirectory, $"console-log2.txt");
+            var logFile = Path.Combine(logDirectory, $"console-log.txt");
 
             // StreamWriter com AutoFlush = true para escrever IMEDIATAMENTE
             _fileWriter = new StreamWriter(logFile, append: true)
