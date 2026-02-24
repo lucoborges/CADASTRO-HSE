@@ -193,6 +193,7 @@ namespace HSE.Automation.Services
                                     {
                                         Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
                                         cadastroRealizado = true;
+                                        botaoAcionado = true;
                                     }
                                     catch (Exception ex)
                                     {
