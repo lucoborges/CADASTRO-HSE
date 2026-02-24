@@ -22,7 +22,7 @@ namespace HSE.Automation.Services
             public const int MaxTentativasPorProduto = 5;
             public const int DelayEntreTentativas = 3000;
             public const int TimeoutPagina = 30000;
-            public const bool Headless = false;
+            public const bool Headless = true;
             public const bool ModoDebug = false;
             public const int DelayEntreConsultasAPI = 3000;
             public const int MaxProdutosPorSessao = 50;
