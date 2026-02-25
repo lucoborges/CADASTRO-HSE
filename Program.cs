@@ -30,7 +30,7 @@ namespace HSE.Automation
 
             // Banner do sistema atualizado
             Console.WriteLine("╔══════════════════════════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║                          🤖 HSE AUTO-CADASTRO v6.0 🤖                        ║");
+            Console.WriteLine("║                          🤖 HSE AUTO-CADASTRO 🤖                            ║");
             Console.WriteLine("║                Sistema Completo - Produtos + Fornecedores + Clientes         ║"); 
             Console.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
 
