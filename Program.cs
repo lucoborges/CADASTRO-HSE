@@ -58,9 +58,18 @@ namespace HSE.Automation
                 var configuration = builder.Configuration;
 
                 // Inicia todos os serviços simultaneamente
-                Console.WriteLine("Testando conexão com API");
                 var groqClient = new GroqClient(configuration["GroqApi:ApiKey"], configuration.GetSection("GroqApi")["BaseUrl"]);
-                await groqClient.TestarConexao();
+                Console.WriteLine("\nTestando conexão com Groq...");
+
+                if (await groqClient.TestarConexao())
+                {
+                    Console.WriteLine("✓ API Groq conectada com sucesso!\n");
+                }
+                else
+                {
+                    Console.WriteLine("✗ Erro ao conectar com API Groq. Verifique sua chave.\n");
+                    return;
+                }
                 await Log();
 
             }
