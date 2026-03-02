@@ -53,6 +53,8 @@ namespace HSE.Automation
             try
             {
                 // Inicia todos os serviços simultaneamente
+                var groqClient = new GroqClient("SUA_CHAVE_AQUI");
+                await groqClient.TestarConexao();
                 await Log();
 
             }
