@@ -8,10 +8,11 @@ public class GroqClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
-    private const string BaseUrl = "https://api.groq.com/openai/v1/chat/completions";
+    private readonly string _BaseUrl;
 
-    public GroqClient(string apiKey)
+    public GroqClient(string apiKey, string baseUrl)
     {
+        _BaseUrl = baseUrl;
         _apiKey = apiKey;
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
@@ -35,7 +36,7 @@ public class GroqClient
             var json = JsonConvert.SerializeObject(request);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync(BaseUrl, content);
+            var response = await _httpClient.PostAsync(_BaseUrl, content);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)

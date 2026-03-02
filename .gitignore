@@ -1,0 +1,12 @@
+# Arquivos de configuração com senhas/chaves
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.json
+
+# Segredos do usuário (dotnet user-secrets)
+secrets.json
+/appsettings.*.json
+
+# Arquivos de ambiente
+.env
+.env.*
