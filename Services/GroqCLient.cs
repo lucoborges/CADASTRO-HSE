@@ -56,25 +56,29 @@ public class GroqClient
             Console.WriteLine($"Descrição normalizada: {decricaoNormalizada}");
             Console.WriteLine($"Descrição original: {descricao}");
 
-            var prompt = $@"Analise os grupos disponíveis e identifique a qual grupo pertence este produto:
+            var prompt = $@"Retorne APENAS o número do ID do grupo para este produto:
 
-Produto: {decricaoNormalizada}
+Produto: {descricao}
 
-Grupos disponíveis (formato ID - Nome):
+Grupos (ID - Nome):
 {string.Join("\n", gruposDisponiveis.Select(g => $"{g.Key} - {g.Value}"))}
 
-Instruções importantes:
-1. Analise o nome do produto e encontre o grupo mais adequado entre os disponíveis
-2. Considere sinônimos, categorias similares e produtos relacionados
-3. Exemplos de mapeamento:
-   - Relógio → Pode estar em ""Relógios"" ou ""Acessórios""
-   - Liquidificador → ""Eletroportáteis"" ou ""Eletrodomésticos""
-   - Mouse → ""Informática"" ou ""Periféricos""
-4.Retorne APENAS o número do ID do grupo escolhido
-5.Se realmente não houver grupo adequado, retorne ""OUTROS""
-6. EXEMPLO DE RESPOSTA: ""iD DO GRUPO""";
+REGRAS ABSOLUTAS:
+- Sua resposta deve conter SOMENTE o número do ID
+- NÃO escreva frases, explicações ou texto adicional
+- NÃO escreva ""ID: "" ou qualquer prefixo
+            - Se for grupo 45, responda apenas: 45
+            - Se não encontrar grupo adequado, responda apenas: OUTROS
+            
 
-            var requestObj = new
+            Exemplo correto: 45
+            Exemplo correto: OUTROS
+            Exemplo ERRADO: ""O grupo é 45""
+            Exemplo ERRADO: ""ID: 45""
+            Exemplo ERRADO: ""Achei o grupo 45 para este produto""";
+            
+
+                        var requestObj = new
             {
                 model = "llama-3.1-8b-instant",
                 messages = new[]
@@ -83,7 +87,7 @@ Instruções importantes:
                          new { role = "user", content = prompt }
                         },
                 temperature = 0.1,
-                max_tokens = 50
+                max_tokens = 10
             };
 
             var json = JsonConvert.SerializeObject(requestObj);
@@ -103,10 +107,20 @@ Instruções importantes:
             var extractedGroup = result?.choices?[0]?.message?.content?.ToString()?.Trim();
             if (!string.IsNullOrEmpty(extractedGroup))
             {
-                Console.WriteLine($"Grupo extraído: {extractedGroup}");
-                return extractedGroup;
+                // Remove qualquer texto extra que possa vir
+                var match = Regex.Match(extractedGroup, @"\d+");
+                if (match.Success)
+                {
+                    return match.Value;
+                }
+
+                // Se for OUTROS (case insensitive)
+                if (extractedGroup.Equals("OUTROS", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "OUTROS";
+                }
             }
-            return "OUTROS";
+                return "OUTROS";
         }
         catch (Exception ex)
         {
