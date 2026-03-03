@@ -754,6 +754,7 @@ namespace HSE.Automation.Services
                     }
 
                     Console.WriteLine($"   ⚠️ IA não identificou, tentando método tradicional...");
+                    Console.WriteLine($"      Grupo sugerido pela IA: {grupoGroq}");
                 }
 
                 // Método tradicional (fallback)
