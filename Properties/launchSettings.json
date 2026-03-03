@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "HSE-Cadastros": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
