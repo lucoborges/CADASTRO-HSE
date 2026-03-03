@@ -71,7 +71,8 @@ Instruções importantes:
    - Liquidificador → ""Eletroportáteis"" ou ""Eletrodomésticos""
    - Mouse → ""Informática"" ou ""Periféricos""
 4.Retorne APENAS o número do ID do grupo escolhido
-5.Se realmente não houver grupo adequado, retorne ""OUTROS""";
+5.Se realmente não houver grupo adequado, retorne ""OUTROS""
+6. EXEMPLO DE RESPOSTA: ""iD DO GRUPO""";
 
             var requestObj = new
             {
