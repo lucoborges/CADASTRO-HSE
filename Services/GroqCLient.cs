@@ -111,6 +111,7 @@ REGRAS ABSOLUTAS:
                 var match = Regex.Match(extractedGroup, @"\d+");
                 if (match.Success)
                 {
+                    Console.WriteLine($"Grupo extraído com sucesso: {match.Value}");
                     return match.Value;
                 }
 

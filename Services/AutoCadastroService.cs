@@ -749,6 +749,7 @@ namespace HSE.Automation.Services
                     // Valida se o ID retornado existe
                     if (grupoGroq != "OUTROS" && gruposDisponiveis.ContainsKey(grupoGroq))
                     {
+                        Console.WriteLine($"   ✅ Grupo sugerido pela IA é válido: {grupoGroq}");
                         Console.WriteLine($"   ✅ IA identificou: {gruposDisponiveis[grupoGroq]}");
                         return grupoGroq;
                     }
@@ -898,7 +899,7 @@ namespace HSE.Automation.Services
         {
             try
             {
-                Console.WriteLine($"   🔤 Preenchendo NCM: {ncm}");
+                Console.WriteLine($"   🔤 Preenchendo NCM: {ncm.Trim()}");
 
                 var campoNCM = await paginaCadastro.QuerySelectorAsync("#dsNcm, input[name='dsNcm']");
 
