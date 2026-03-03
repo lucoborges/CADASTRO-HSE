@@ -92,6 +92,7 @@ Instruções importantes:
 
             if (!response.IsSuccessStatusCode)
             {
+                Console.WriteLine($"Erro na resposta da API Groq: {response.StatusCode}");
                 return "OUTROS";
             }
 
@@ -101,6 +102,7 @@ Instruções importantes:
             var extractedGroup = result?.choices?[0]?.message?.content?.ToString()?.Trim();
             if (!string.IsNullOrEmpty(extractedGroup))
             {
+                Console.WriteLine($"Grupo extraído: {extractedGroup}");
                 return extractedGroup;
             }
             return "OUTROS";
