@@ -53,6 +53,8 @@ public class GroqClient
         try
         {
             var decricaoNormalizada = NormalizarDescricao(descricao);
+            Console.WriteLine($"Descrição normalizada: {decricaoNormalizada}");
+            Console.WriteLine($"Descrição original: {descricao}");
 
             var prompt = $@"Analise os grupos disponíveis e identifique a qual grupo pertence este produto:
 
