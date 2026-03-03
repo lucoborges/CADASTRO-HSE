@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using HSE.Automation.Services;
+using Newtonsoft.Json;
 using System;
 using System.Drawing;
 using System.Globalization;
@@ -52,40 +53,39 @@ public class GroqClient
     {
         try
         {
-            var decricaoNormalizada = NormalizarDescricao(descricao);
-            Console.WriteLine($"Descrição normalizada: {decricaoNormalizada}");
-            Console.WriteLine($"Descrição original: {descricao}");
+            // LOG PARA DEBUG - ver o que está chegando
+            Console.WriteLine($"   🔍 Grupos disponíveis: {string.Join(", ", gruposDisponiveis.Take(5).Select(g => $"{g.Key}={g.Value}"))}...");
 
-            var prompt = $@"Retorne APENAS o número do ID do grupo para este produto:
+            var prompt = $@"Classifique este produto em UM dos grupos abaixo:
 
-Produto: {descricao}
+PRODUTO: {descricao}
 
-Grupos (ID - Nome):
-{string.Join("\n", gruposDisponiveis.Select(g => $"{g.Key} - {g.Value}"))}
+GRUPOS DISPONÍVEIS (ID = Nome):
+{string.Join("\n", gruposDisponiveis.Select(g => $"{g.Key} = {g.Value}"))}
 
-REGRAS ABSOLUTAS:
-- Sua resposta deve conter SOMENTE o número do ID
-- NÃO escreva frases, explicações ou texto adicional
-- NÃO escreva ""ID: "" ou qualquer prefixo
-            - Se for grupo 45, responda apenas: 45
-            - Se não encontrar grupo adequado, responda apenas: OUTROS
-            
+INSTRUÇÕES CRÍTICAS:
+- Analise o produto e escolha o grupo MAIS ADEQUADO
+- Considere a categoria, função e tipo do produto
+- Retorne SOMENTE o NÚMERO DO ID (ex: 225, 136, 45)
+- NÃO retorne o nome do grupo
+- NÃO escreva texto adicional
 
-            Exemplo correto: 45
-            Exemplo correto: OUTROS
-            Exemplo ERRADO: ""O grupo é 45""
-            Exemplo ERRADO: ""ID: 45""
-            Exemplo ERRADO: ""Achei o grupo 45 para este produto""";
-            
+Exemplos de classificação correta:
+- MOTOSSERRA STIHL → Grupo de Ferramentas (ID: 78)
+- DECODIFICADOR HIKVISION → Eletrônicos/Informática (ID: 225)
+- PALLET DE CONTENÇÃO → Embalagens/Logística (ID: 92)
+- ENCODER DYNAPAR → Automação Industrial (ID: 156)
 
-                        var requestObj = new
+Sua resposta (APENAS O NÚMERO DO ID):";
+
+            var requestObj = new
             {
                 model = "llama-3.1-8b-instant",
                 messages = new[]
                 {
-                         new { role = "system", content = "Você é um identificador de grupos para cadastro de produtos, siga as regras e retorne o resultado mais acertivo." },
-                         new { role = "user", content = prompt }
-                        },
+                new { role = "system", content = "Você é um especialista em classificação de produtos industriais. Responda apenas com números, sem texto." },
+                new { role = "user", content = prompt }
+            },
                 temperature = 0.1,
                 max_tokens = 10
             };
@@ -97,7 +97,8 @@ REGRAS ABSOLUTAS:
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"Erro na resposta da API Groq: {response.StatusCode}");
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"   ❌ Erro API: {error}");
                 return "OUTROS";
             }
 
@@ -105,28 +106,103 @@ REGRAS ABSOLUTAS:
             dynamic result = JsonConvert.DeserializeObject(responseJson);
 
             var extractedGroup = result?.choices?[0]?.message?.content?.ToString()?.Trim();
+
+            // LOG - ver o que a IA retornou
+            Console.WriteLine($"   🤖 Resposta bruta da IA: '{extractedGroup}'");
+
             if (!string.IsNullOrEmpty(extractedGroup))
             {
-                // Remove qualquer texto extra que possa vir
-                var match = Regex.Match(extractedGroup, @"\d+");
+                // Extrair apenas números da resposta
+                var match = Regex.Match(extractedGroup, @"\b(\d+)\b");
                 if (match.Success)
                 {
-                    Console.WriteLine($"Grupo extraído com sucesso: {match.Value}");
-                    return match.Value;
-                }
+                    var groupId = match.Groups[1].Value;
 
-                // Se for OUTROS (case insensitive)
-                if (extractedGroup.Equals("OUTROS", StringComparison.OrdinalIgnoreCase))
+                    // Verificar se o ID existe nos grupos disponíveis
+                    if (gruposDisponiveis.ContainsKey(groupId))
+                    {
+                        Console.WriteLine($"   ✅ IA identificou: {gruposDisponiveis[groupId]} (ID: {groupId})");
+                        return groupId;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"   ⚠️ ID {groupId} não existe nos grupos disponíveis");
+                    }
+                }
+                else if (extractedGroup.Equals("OUTROS", StringComparison.OrdinalIgnoreCase))
                 {
                     return "OUTROS";
                 }
             }
-                return "OUTROS";
+
+            // Se chegou aqui, não conseguiu identificar corretamente
+            Console.WriteLine($"   ⚠️ IA não retornou ID válido, tentando método tradicional...");
+
+            // Fallback para método tradicional
+            return await EncontrarGrupoAutomaticamente(descricao, gruposDisponiveis, "136", false, this);
+
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Erro ao extrair grupo: {ex.Message}");
+            Console.WriteLine($"   ❌ Erro ao extrair grupo: {ex.Message}");
             return "OUTROS";
+        }
+    }
+    private async Task<string> EncontrarGrupoAutomaticamente(
+    string descricao,
+    Dictionary<string, string> gruposDisponiveis,
+    string idGrupoOutros,
+    bool groqTestResult,
+    GroqClient groqClient)
+    {
+        try
+        {
+            Console.WriteLine($"   🏷️ Buscando grupo para: {descricao}");
+
+            // LOG - ver se gruposDisponiveis contém "1° SOCORROS"
+            var grupoSuspeito = gruposDisponiveis.FirstOrDefault(g => g.Value.Contains("SOCORROS"));
+            if (!string.IsNullOrEmpty(grupoSuspeito.Key))
+            {
+                Console.WriteLine($"   ⚠️ ATENÇÃO: Grupo '1° SOCORROS' existe com ID: {grupoSuspeito.Key}");
+            }
+
+            if (groqTestResult)
+            {
+                var grupoGroq = await groqClient.ExtractGroupFromContent(descricao, gruposDisponiveis);
+                Console.WriteLine($"   🤖 IA retornou: '{grupoGroq}'");
+
+                // Validar se o ID retornado existe
+                if (grupoGroq != "OUTROS" && gruposDisponiveis.ContainsKey(grupoGroq))
+                {
+                    string nomeGrupo = gruposDisponiveis[grupoGroq];
+                    Console.WriteLine($"   ✅ IA identificou: {nomeGrupo} (ID: {grupoGroq})");
+                    return grupoGroq;
+                }
+                else
+                {
+                    Console.WriteLine($"   ⚠️ IA retornou ID inválido ou OUTROS");
+                }
+            }
+
+            // Método tradicional de sugestão de grupo (sem IA)
+            Console.WriteLine($"   🔄 Tentando método tradicional...");
+            var grupoTradicional = await GrupoService.SugerirGrupo(descricao, gruposDisponiveis);
+
+            if (!string.IsNullOrEmpty(grupoTradicional) && gruposDisponiveis.ContainsKey(grupoTradicional))
+            {
+                string nomeGrupo = gruposDisponiveis[grupoTradicional];
+                Console.WriteLine($"   ✅ Tradicional: {nomeGrupo} (ID: {grupoTradicional})");
+                return grupoTradicional;
+            }
+
+            // Fallback final
+            Console.WriteLine($"   ⚠️ Usando OUTROS (ID: {idGrupoOutros})");
+            return idGrupoOutros ?? "136";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"   ⚠️ Erro: {ex.Message}");
+            return idGrupoOutros ?? "136";
         }
     }
     private string NormalizarDescricao(string descricao)
