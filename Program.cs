@@ -60,8 +60,8 @@ namespace HSE.Automation
                 // Inicia todos os serviços simultaneamente
                 var groqClient = new GroqClient(configuration["GroqApi:ApiKey"], configuration.GetSection("GroqApi")["BaseUrl"]);
                 Console.WriteLine("\nTestando conexão com Groq...");
-
-                if (await groqClient.TestarConexao())
+                var groqTestResult = await groqClient.TestarConexao();
+                if (groqTestResult)
                 {
                     Console.WriteLine("✓ API Groq conectada com sucesso!\n");
                 }
@@ -70,7 +70,7 @@ namespace HSE.Automation
                     Console.WriteLine("✗ Erro ao conectar com API Groq. Verifique sua chave.\n");
                     return;
                 }
-                await Log();
+                await Log(groqTestResult, groqClient);
 
             }
             catch (Exception ex)
@@ -82,7 +82,7 @@ namespace HSE.Automation
                 Console.WriteLine("\n👋 Sistema encerrado...");
             }
         }
-        static async Task Log()
+        static async Task Log(bool groqTestResult, GroqClient groqClient)
         {
             
             using var logger = new ConsoleFileLogger(@"\\SERVIDOR2\Publico\ALLAN\Logs");
@@ -94,7 +94,7 @@ namespace HSE.Automation
             try
             {
                 Console.WriteLine("Chamando IniciarServicosTriplos...");
-                await IniciarServicosTriplos();
+                await IniciarServicosTriplos(groqTestResult, groqClient);
 
                 Console.WriteLine("Processamento concluído com sucesso!");
             }
@@ -108,14 +108,14 @@ namespace HSE.Automation
             Console.WriteLine();
             Console.WriteLine("=== APLICAÇÃO FINALIZADA ===");
         }
-        static async Task IniciarServicosTriplos()
+        static async Task IniciarServicosTriplos(bool groqTestResult, GroqClient groqClient)
         {
             // Lista de tarefas a executar
             var tasks = new List<Task>();
 
             // Tarefa 1: Servidor de Produtos (porta 6001)
             Console.WriteLine("\n🚀 INICIANDO SERVIDOR DE PRODUTOS (porta 6001)...");
-            _taskProdutos = Task.Run(() => IniciarServidorProdutos(_cancellationTokenSource.Token));
+            _taskProdutos = Task.Run(() => IniciarServidorProdutos(_cancellationTokenSource.Token, groqTestResult, groqClient));
             tasks.Add(_taskProdutos);
 
             // Pequena pausa para evitar conflitos
@@ -149,7 +149,7 @@ namespace HSE.Automation
             }
         }
 
-        static async Task IniciarServidorProdutos(CancellationToken cancellationToken)
+        static async Task IniciarServidorProdutos(CancellationToken cancellationToken, bool groqTestResult, GroqClient groqClient)
         {
             try
             {
@@ -230,7 +230,7 @@ namespace HSE.Automation
 
                         // Processa usando o sistema existente
                         Console.WriteLine("🤖 [PRODUTOS] Executando cadastro...");
-                        var resultado = await AutoCadastroService.ProcessarTarefaComRetry(produtoRequest);
+                        var resultado = await AutoCadastroService.ProcessarTarefaComRetry(produtoRequest, groqTestResult, groqClient);
 
                         if (resultado != null && resultado.Sucesso)
                         {

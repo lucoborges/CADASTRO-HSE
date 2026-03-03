@@ -2,11 +2,13 @@
 using HSE.Automation.Services;
 using HSE.Automation.Utils;
 using Microsoft.Playwright;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -164,7 +166,7 @@ namespace HSE.Automation.Services
                 return gruposDisponiveis;
             }
         }
-        public static async Task<ProdutoResponseModel> ProcessarTarefaComRetry(ProdutoRequestModel produtoRequest)
+        public static async Task<ProdutoResponseModel> ProcessarTarefaComRetry(ProdutoRequestModel produtoRequest, bool groqTestResult, GroqClient groqClient)
         {
 
             IPlaywright playwright = null;
@@ -198,7 +200,9 @@ namespace HSE.Automation.Services
                     context,
                     gruposDisponiveis,
                     marcasDisponiveis,
-                    idGrupoOutros);
+                    idGrupoOutros,
+                    groqTestResult,
+                    groqClient);
 
                 return resultado;
             }
@@ -218,7 +222,9 @@ namespace HSE.Automation.Services
             IBrowserContext context, // Recebe o contexto como parâmetro
             Dictionary<string, string> gruposDisponiveis, // Recebe/retorna grupos
             Dictionary<string, string> marcasDisponiveis, // Recebe/retorna marcas
-            string idGrupoOutros) // Recebe/retorna id do grupo OUTROS
+            string idGrupoOutros,
+            bool groqTestResult,
+            GroqClient groqClient) // Recebe/retorna id do grupo OUTROS
         {
             bool preenchimentoOk = false;
             bool formularioAberto = false;
@@ -283,7 +289,7 @@ namespace HSE.Automation.Services
                 }
 
                 // 4. Encontra grupo automaticamente
-                string grupoId = await EncontrarGrupoAutomaticamente(produtoRequest.Descricao, gruposDisponiveis, idGrupoOutros);
+                string grupoId = await EncontrarGrupoAutomaticamente(produtoRequest.Descricao, gruposDisponiveis, idGrupoOutros, groqTestResult, groqClient);
                 string grupoNome = ObterNomeGrupo(grupoId, gruposDisponiveis);
 
                 // 5. Calcula preço de venda (45% markup)
@@ -725,31 +731,46 @@ namespace HSE.Automation.Services
 
             return numeros.Distinct().ToList();
         }
-        private static async Task<string> EncontrarGrupoAutomaticamente(string descricao,
-    Dictionary<string, string> gruposDisponiveis,
-    string idGrupoOutros)
+        private static async Task<string> EncontrarGrupoAutomaticamente(
+            string descricao,
+            Dictionary<string, string> gruposDisponiveis,
+            string idGrupoOutros,
+            bool groqTestResult,
+            GroqClient groqClient)
         {
             try
             {
                 Console.WriteLine($"   🏷️ Buscando grupo para: {descricao}");
 
-                // Método tradicional de sugestão de grupo (sem IA)
+                if (groqTestResult)
+                {
+                    var grupoGroq = await groqClient.ExtractGroupFromContent(descricao, gruposDisponiveis);
+
+                    // Valida se o ID retornado existe
+                    if (grupoGroq != "OUTROS" && gruposDisponiveis.ContainsKey(grupoGroq))
+                    {
+                        Console.WriteLine($"   ✅ IA identificou: {gruposDisponiveis[grupoGroq]}");
+                        return grupoGroq;
+                    }
+
+                    Console.WriteLine($"   ⚠️ IA não identificou, tentando método tradicional...");
+                }
+
+                // Método tradicional (fallback)
                 var grupoTradicional = await GrupoService.SugerirGrupo(descricao, gruposDisponiveis);
 
                 if (!string.IsNullOrEmpty(grupoTradicional) && gruposDisponiveis.ContainsKey(grupoTradicional))
                 {
-                    string nomeGrupo = gruposDisponiveis[grupoTradicional];
-                    Console.WriteLine($"   ✅ Usando tradicional: {nomeGrupo} (ID: {grupoTradicional})");
+                    Console.WriteLine($"   ✅ Tradicional: {gruposDisponiveis[grupoTradicional]}");
                     return grupoTradicional;
                 }
 
-                // Fallback final
-                Console.WriteLine($"   ⚠️ Usando grupo padrão: OUTROS");
+                Console.WriteLine($"   ⚠️ Usando OUTROS");
                 return idGrupoOutros ?? "136";
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"   ⚠️ Erro ao encontrar grupo: {ex.Message}");
+                Console.WriteLine($"   ⚠️ Erro: {ex.Message}");
                 return idGrupoOutros ?? "136";
             }
         }
@@ -2399,7 +2420,7 @@ namespace HSE.Automation.Services
             IBrowserContext context, 
             Dictionary<string, string> gruposDisponiveis, 
             Dictionary<string, string> marcasDisponiveis, 
-            string idGrupoOutros)
+            string idGrupoOutros, bool groqTestResult, GroqClient groqClient)
         {
             int tentativas = 0;
             const int maxTentativas = 3;
@@ -2412,7 +2433,7 @@ namespace HSE.Automation.Services
                 try
                 {
                     // Tenta fazer o cadastro
-                    await ProcessarTarefaAutomaticamente(produtoRequest, paginaPrincipal, context, gruposDisponiveis, marcasDisponiveis, idGrupoOutros);
+                    await ProcessarTarefaAutomaticamente(produtoRequest, paginaPrincipal, context, gruposDisponiveis, marcasDisponiveis, idGrupoOutros, groqTestResult, groqClient);
                     // Se falhou, tenta recuperar
                     Console.WriteLine($"⚠️ Falha no cadastro, tentando recuperar... (Motivo:)");
                 }
