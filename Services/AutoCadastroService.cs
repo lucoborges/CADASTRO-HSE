@@ -295,6 +295,11 @@ namespace HSE.Automation.Services
                 // 5. Calcula preço de venda (45% markup)
                 decimal precoVenda = Math.Round(produtoRequest.Custo * 1.45m, 2);
 
+                Console.WriteLine($"    DEBUG - Custo Original: {produtoRequest.Custo}");
+                Console.WriteLine($"    DEBUG - Preço Venda Calculado: {precoVenda}");
+                Console.WriteLine($"    DEBUG - Custo Formatado: {produtoRequest.Custo.ToString("F2")}");
+                Console.WriteLine($"    DEBUG - Venda Formatada: {precoVenda.ToString("F2")}");
+
                 // 6. Preenche formulário automaticamente
                 preenchimentoOk = await PreencherFormularioAutomaticamente(
                     produtoRequest,
