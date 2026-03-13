@@ -68,7 +68,6 @@ namespace HSE.Automation
                 else
                 {
                     Console.WriteLine("✗ Erro ao conectar com API Groq. Verifique sua chave.\n");
-                    return;
                 }
                 await Log(groqTestResult, groqClient);
 
