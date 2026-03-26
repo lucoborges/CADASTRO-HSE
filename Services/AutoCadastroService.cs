@@ -905,7 +905,7 @@ namespace HSE.Automation.Services
                 await campoNCM.FillAsync("");
                 await paginaCadastro.WaitForTimeoutAsync(200);
 
-                foreach (char c in ncm)
+                foreach (char c in ncm.Trim())
                 {
                     await campoNCM.PressAsync(c.ToString());
                     await paginaCadastro.WaitForTimeoutAsync(50);
