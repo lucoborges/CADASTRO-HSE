@@ -649,6 +649,8 @@ namespace HSE.Automation.Services
                                         Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
                                         Console.WriteLine($"⚠️ Ou possível erro ao clicar em salvar");
                                         cadastroRealizado = true;
+                                        botaoAcionado = true;
+                                        //Garantia
                                     }
                                 }
                                 else
