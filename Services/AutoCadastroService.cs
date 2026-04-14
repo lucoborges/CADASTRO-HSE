@@ -896,7 +896,7 @@ namespace HSE.Automation.Services
         {
             try
             {
-                Console.WriteLine($"   🔤 Preenchendo NCM: {ncm.Trim()}");
+                Console.WriteLine($"   🔤 Preenchendo NCM: {ncm.Replace(".","")}");
 
                 var campoNCM = await paginaCadastro.QuerySelectorAsync("#dsNcm, input[name='dsNcm']");
 
@@ -905,7 +905,7 @@ namespace HSE.Automation.Services
                 await campoNCM.FillAsync("");
                 await paginaCadastro.WaitForTimeoutAsync(200);
 
-                foreach (char c in ncm.Trim())
+                foreach (char c in ncm.Replace(".",""))
                 {
                     await campoNCM.PressAsync(c.ToString());
                     await paginaCadastro.WaitForTimeoutAsync(50);
