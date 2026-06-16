@@ -80,7 +80,7 @@ Sua resposta (APENAS O NÚMERO DO ID):";
 
             var requestObj = new
             {
-                model = "llama-3.1-8b-instant",
+                model = "openai/gpt-oss-120b",
                 messages = new[]
                 {
                 new { role = "system", content = "Você é um especialista em classificação de produtos industriais. Responda apenas com números, sem texto." },
