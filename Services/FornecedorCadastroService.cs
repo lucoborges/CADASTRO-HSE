@@ -454,7 +454,7 @@ namespace HSE.Automation.Services
 
             try
             {
-                Console.WriteLine("🧪 TESTE COMPLETO DE CADASTRO DE CLIENTE");
+                Console.WriteLine("🧪 TESTE COMPLETO DE CADASTRO DE FORNECEDOR");
                 Console.WriteLine(new string('═', 60));
 
                 // 1. Inicializa navegador
@@ -464,21 +464,18 @@ namespace HSE.Automation.Services
                 IBrowserContext context;
                 IPage paginaPrincipal;
 
-
                 playwright = await Playwright.CreateAsync();
 
                 browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
                 {
                     Headless = true,
                     SlowMo = 100,
-                    Args = new[]
-                    {
+                    Args = new[] {
                 "--start-maximized",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-infobars",
                 "--no-first-run"
-
-                }
+            }
                 });
 
                 context = await browser.NewContextAsync(new BrowserNewContextOptions
@@ -493,28 +490,32 @@ namespace HSE.Automation.Services
 
                 Console.WriteLine("✅ Navegador inicializado");
 
+                // 1. Obtém fornecedor da API
+                Console.WriteLine("\n📡 OBTENDO FORNECEDOR DA API...");
 
-                if (string.IsNullOrEmpty(cnpj))
+                string cnpjInput = cnpj;
+
+                if (string.IsNullOrEmpty(cnpjInput))
                 {
-                    cnpj = "12.345.678/0001-90";
-                    Console.WriteLine($"Usando CNPJ padrão: {cnpj}");
+                    cnpjInput = "12.345.678/0001-90";
+                    Console.WriteLine($"Usando CNPJ padrão: {cnpjInput}");
                 }
 
-                string cnpjLimpo = LimparCnpj(cnpj);
+                string cnpjLimpo = LimparCnpj(cnpjInput);
 
                 // 2. Faz login
                 Console.WriteLine("\n🔐 FAZENDO LOGIN...");
                 await LoginService.RealizarLogin(paginaPrincipal);
 
                 // 3. Navega para página de fornecedores
-                Console.WriteLine("\n📍 NAVEGANDO PARA PÁGINA DE CLIENTE...");
-                await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/cliente.php");
+                Console.WriteLine("\n📍 NAVEGANDO PARA PÁGINA DE FORNECEDORES...");
+                await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/fornecedor.php");
                 await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 await Task.Delay(5000);
 
                 // 4. Procura o botão "Cadastro Rápido"
                 Console.WriteLine("\n🔍 PROCURANDO BOTÃO 'CADASTRO RÁPIDO'...");
-                var botaoCadastroRapido = await paginaPrincipal.QuerySelectorAsync("#btNovo, button:has-text('Novo'), button:has-text('NOVO')");
+                var botaoCadastroRapido = await paginaPrincipal.QuerySelectorAsync("#brCadastroRapido, button:has-text('Cadastro Rápido'), button:has-text('CADASTRO RÁPIDO')");
 
                 Console.WriteLine($"✅ Botão encontrado! Texto: {await botaoCadastroRapido.TextContentAsync()}");
 
@@ -571,45 +572,15 @@ namespace HSE.Automation.Services
                                 Console.WriteLine($"✅ CNPJ digitado: {cnpjLimpo}");
                                 await Task.Delay(1000);
 
-                                var valorAtual = (await campoCnpj.GetAttributeAsync("value"))?.Trim();
-                                Console.WriteLine($"   Valor atual no campo: {valorAtual}");
+                                var valorAtual = await campoCnpj.GetAttributeAsync("value");
+                                var outroValor = await campoCnpj.TextContentAsync();
+                                Console.WriteLine($"   Valor atual no campo: {valorAtual}{outroValor}");
 
-                                var Inscricao = await novaAba.QuerySelectorAsync("rfInscricaoEstadual, input[name='rfInscricaoEstadual']");
-                                if (Inscricao != null && !string.IsNullOrEmpty(inscricaoEstadual))
-                                {
-                                    Console.WriteLine("✅ Campo rfInscricaoEstadual encontrado");
-                                    await Inscricao.FillAsync("");
-                                    foreach (char c in inscricaoEstadual)
-                                    {
-                                        await Inscricao.PressAsync(c.ToString());
-                                        await Task.Delay(50);
-                                    }
-                                    var valor = (await Inscricao.GetAttributeAsync("value"))?.Trim();
-                                    Console.WriteLine($"   Valor atual no campo: {valorAtual}");
-                                }
-                                else
-                                {
-                                    Console.WriteLine("ℹ️ Não contribuinte");
-                                    await novaAba.SelectOptionAsync("#idInscricaoEstadual", new SelectOptionValue { Value = "9" });
 
-                                    await novaAba.WaitForTimeoutAsync(1000);
-                                }
-                                var seletorFinalidade = await novaAba.QuerySelectorAsync("#idFinalidadeVenda");
-                                if (seletorFinalidade != null)
-                                {
-                                    Console.WriteLine(" Selecionando finalidade...");
-
-                                    await novaAba.SelectOptionAsync("#idFinalidadeVenda", new SelectOptionValue { Value = "C" });
-
-                                    await novaAba.WaitForTimeoutAsync(1000);
-                                }
-                                else
-                                {
-                                    Console.WriteLine("⚠️ Seleção de finalidade não encontrada, continuando...");
-                                }
+                                Console.WriteLine("✅ CNPJ preenchido corretamente");
                                 // Procura botão de salvar
                                 Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE SALVAR...");
-                                var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btn btn-primary");
+                                var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
 
                                 if (botaoSalvar != null)
                                 {
@@ -629,36 +600,35 @@ namespace HSE.Automation.Services
                                             // Aguarda um tempo curto e verifica se a página ainda está aberta
                                             await Task.Delay(500);
 
-                                             // Se a página foi fechada, significa que o cadastro foi processado
-                                             if (novaAba.IsClosed)
-                                             {
-                                                    Console.WriteLine("✅ Página de cadastro fechada - Cadastro processado!");
-                                                    cadastroRealizado = true;
-                                                    botaoAcionado = true;
-                                                    break;
-                                             }
-                                            else
+                                            // Se a página foi fechada, significa que o cadastro foi processado
+                                            if (novaAba.IsClosed)
                                             {
-                                                Console.WriteLine("Página de cadastro ainda aberta, tentando salvar novamente...");
+                                                Console.WriteLine("✅ Página de cadastro fechada - Cadastro processado!");
+                                                cadastroRealizado = true;
+                                                botaoAcionado = true;
+                                                continue;
                                             }
                                         }
                                         while (!novaAba.IsClosed);
                                     }
-                                    catch
+                                    catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
                                     {
                                         Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
-                                        Console.WriteLine($"⚠️ Ou possível erro ao clicar em salvar");
                                         cadastroRealizado = true;
                                         botaoAcionado = true;
-                                        //Garantia
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"⚠️ Erro ao clicar em salvar: {ex.Message}");
                                     }
                                 }
+
                                 else
                                 {
-                                    Console.WriteLine("❌ Botão de salvar não encontrado");
+                                    Console.WriteLine("❌ CNPJ não foi preenchido corretamente");
                                 }
                             }
-                            catch
+                            catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
                             {
                                 Console.WriteLine("ℹ️ A página foi fechada automaticamente (possivelmente CNPJ já cadastrado)");
                                 Console.WriteLine("ℹ️ Continuando com o fluxo principal...");
@@ -668,17 +638,17 @@ namespace HSE.Automation.Services
                                 Console.WriteLine($"🌐 URL da nova aba: {novaAba.Url}");
 
                                 // Procurando Código do Fornecedor
-                                Console.WriteLine("\n🔍 PROCURANDO CÓDIGO DO CLIENTE NA NOVA ABA...");
-                                var codFornecedor = await novaAba.QuerySelectorAsync("#cdCliente, input[name='cdCliente']");
+                                Console.WriteLine("\n🔍 PROCURANDO CÓDIGO DO FORNECEDOR NA NOVA ABA...");
+                                var codFornecedor = await novaAba.QuerySelectorAsync("#cdFornecedor, input[name='cdFornecedor']");
                                 if (codFornecedor != null)
                                 {
                                     codigoFornecedor = (await codFornecedor.GetAttributeAsync("value"))?.Trim();
-                                    Console.WriteLine($"✅ Código do CLIENTE encontrado: {codigoFornecedor}");
+                                    Console.WriteLine($"✅ Código do fornecedor encontrado: {codigoFornecedor}");
                                     cadastroRealizado = true;
                                 }
                                 else
                                 {
-                                    Console.WriteLine("❌ Código do CLIENTE não encontrado na nova aba");
+                                    Console.WriteLine("❌ Código do fornecedor não encontrado na nova aba");
                                 }
                             }
                         }
@@ -687,12 +657,15 @@ namespace HSE.Automation.Services
                             Console.WriteLine("❌ Campo CNPJ não encontrado na nova aba");
                         }
                     }
-                    catch
+                    catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
                     {
                         Console.WriteLine("ℹ️ A aba de cadastro foi fechada automaticamente");
-                        Console.WriteLine($"⚠️ Ou possível erro na nova aba");
                         Console.WriteLine("ℹ️ Continuando com o fluxo principal...");
                         cadastroRealizado = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"⚠️ Erro na nova aba: {ex.Message}");
                     }
                 }
                 else
@@ -700,26 +673,27 @@ namespace HSE.Automation.Services
                     Console.WriteLine("❌ Nenhuma nova aba foi aberta");
                 }
 
-                Console.WriteLine("\n📍 CONTINUANDO COM O FLUXO PRINCIPAL...");
-
                 try
                 {
                     if (cadastroRealizado && botaoAcionado)
                     {
+
+                        // ⭐⭐⭐ AGORA CONTINUA COM O FLUXO PRINCIPAL ⭐⭐⭐
+                        Console.WriteLine("\n📍 CONTINUANDO COM O FLUXO PRINCIPAL...");
                         // Garante que estamos na página principal
                         await paginaPrincipal.BringToFrontAsync();
 
                         // Se não estamos mais na página de fornecedores, navega até ela
-                        if (!paginaPrincipal.Url.Contains("cliente.php"))
+                        if (!paginaPrincipal.Url.Contains("fornecedor.php"))
                         {
-                            Console.WriteLine("📍 NAVEGANDO PARA PÁGINA DE CLIENTE...");
-                            await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/cliente.php");
+                            Console.WriteLine("📍 NAVEGANDO PARA PÁGINA DE FORNECEDORES...");
+                            await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/fornecedor.php");
                             await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                             await Task.Delay(3000);
                         }
 
                         // CONSULTA O FORNECEDOR CADASTRADO
-                        Console.WriteLine("\n🔍 CONSULTANDO CLIENTE CADASTRADO...");
+                        Console.WriteLine("\n🔍 CONSULTANDO FORNECEDOR CADASTRADO...");
 
                         // Procura campo de consulta CNPJ
                         var campoConsultaCnpj = await paginaPrincipal.QuerySelectorAsync("#rfCnpjCpf, input[name='rfCnpjCpf']");
@@ -749,7 +723,7 @@ namespace HSE.Automation.Services
                                 await Task.Delay(5000);
 
                                 // Tenta encontrar o código do fornecedor na tabela de resultados
-                                Console.WriteLine("\n🔍 PROCURANDO CÓDIGO DO CLIENTE...");
+                                Console.WriteLine("\n🔍 PROCURANDO CÓDIGO DO FORNECEDOR...");
 
                                 // Procura por várias formas de identificar o código
                                 var codigoElement = await paginaPrincipal.QuerySelectorAsync(".align-middle");
@@ -758,6 +732,7 @@ namespace HSE.Automation.Services
                                 {
                                     codigoFornecedor = (await codigoElement.TextContentAsync())?.Trim();
                                     Console.WriteLine($"✅ Código do fornecedor encontrado: {codigoFornecedor}");
+                                    await codigoElement.ClickAsync(); // Clica no código para abrir detalhes
                                 }
                                 else
                                 {
@@ -771,31 +746,99 @@ namespace HSE.Automation.Services
                                             // Provavelmente é um código numérico
                                             codigoFornecedor = texto;
                                             Console.WriteLine($"✅ Possível código encontrado: {codigoFornecedor}");
+                                            await celula.ClickAsync(); // Clica no código para abrir detalhes
                                             break;
                                         }
                                     }
 
                                     if (codigoFornecedor == null)
                                     {
-                                        Console.WriteLine("⚠️ Código do CLIENTE não encontrado na tabela");
+                                        Console.WriteLine("⚠️ Código do fornecedor não encontrado na tabela");
                                     }
+
+                                }
+                                try
+                                {
+
+
+                                    novaAba = context.Pages.Last();
+                                    await novaAba.BringToFrontAsync();
+                                    Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE EDITAR...");
+                                    var botaoEditar = await novaAba.QuerySelectorAsync("#btEditar, button:has-text('Editar'), button:has-text('EDITAR'), .btEditar, .btn-editar");
+
+                                    if (botaoEditar != null)
+                                    {
+                                        Console.WriteLine("✅ Botão de editar encontrado");
+
+                                        // Aguarda um pouco antes de clicar
+                                        await Task.Delay(1000);
+
+                                        // Tenta salvar e captura qualquer exceção
+                                        Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'EDITAR'...");
+                                        await botaoEditar.ClickAsync();
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("❌ Botão editar não encontrado");
+                                    }
+                                    var tambemECliente = await novaAba.QuerySelectorAsync("#idClienteFornecedor");
+
+                                    if (tambemECliente != null)
+                                    {
+                                        Console.WriteLine("✅ Botão de 'Também é cliente' encontrado");
+
+                                        // Aguarda um pouco antes de clicar
+                                        await Task.Delay(1000);
+
+                                        // Tenta salvar e captura qualquer exceção
+                                        Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'Também é cliente'...");
+                                        await tambemECliente.ClickAsync();
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("❌ Botão 'Também é cliente' não encontrado");
+                                    }
+                                    Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE SALVAR...");
+                                    var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
+
+                                    if (botaoSalvar != null)
+                                    {
+                                        Console.WriteLine("✅ Botão de salvar encontrado");
+
+                                        // Aguarda um pouco antes de clicar
+                                        await Task.Delay(1000);
+
+                                        // Tenta salvar e captura qualquer exceção
+                                        Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'SALVAR'...");
+                                        await botaoSalvar.ClickAsync();
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("❌ Botão salvar não encontrado");
+                                    }
+                                }
+                                catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
+                                {
+                                    Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
+                                    cadastroRealizado = true;
+                                    botaoAcionado = true;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"⚠️ Erro ao clicar em salvar: {ex.Message}");
                                 }
                             }
                             else
                             {
                                 Console.WriteLine("❌ Botão consultar não encontrado");
                             }
-                        }
-                        else
-                        {
-                            Console.WriteLine("❌ Campo de consulta CNPJ não encontrado");
+
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"⚠️ Erro no fluxo de consulta: {ex.Message}");
-
                 }
 
                 // Fecha navegador
