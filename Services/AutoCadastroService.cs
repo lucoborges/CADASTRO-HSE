@@ -175,6 +175,24 @@ namespace HSE.Automation.Services
 
             try
             {
+                // 0. Verifica ANTES de abrir o navegador se o produto já existe no banco.
+                //    Evita subir Playwright + login quando a resposta é "já cadastrado".
+                string codigoExistenteInicial = await VerificarProdutoExistenteNoBanco(
+                    produtoRequest.Descricao,
+                    produtoRequest.NCM,
+                    produtoRequest.Custo);
+
+                if (!string.IsNullOrEmpty(codigoExistenteInicial))
+                {
+                    Console.WriteLine($"💡 Produto já existe no banco (verificação prévia): {codigoExistenteInicial}");
+                    Estatisticas.ProdutosExistentes++;
+
+                    return ProdutoResponseModel.ProdutoExistenteResponse(
+                        codigoExistenteInicial,
+                        produtoRequest.Descricao,
+                        produtoRequest.RequestId);
+                }
+
                 // Cria navegador independente
                 playwright = await Playwright.CreateAsync();
                 browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
@@ -236,7 +254,9 @@ namespace HSE.Automation.Services
                 Console.WriteLine($"🤖 Processando tarefa: {produtoRequest.RequestId}");
                 Console.WriteLine($"   📦 {produtoRequest.Descricao}");
 
-                // 1. Verifica se produto já existe no banco
+                // 1. Re-verifica no banco (fallback para o caminho de recuperação, que já
+                //    entra com o navegador aberto). No fluxo normal a checagem ocorre
+                //    antes de criar o navegador, em ProcessarTarefaComRetry.
                 string codigoExistente = await VerificarProdutoExistenteNoBanco(
                     produtoRequest.Descricao,
                     produtoRequest.NCM,
@@ -305,6 +325,34 @@ namespace HSE.Automation.Services
                     throw new Exception("Erro ao preencher formulário");
                 }
 
+                // 6.1 RE-VERIFICAÇÃO ANTES DE SALVAR NO SITE (evita duplicidade):
+                //     enquanto o formulário era preenchido, outro fluxo pode ter
+                //     cadastrado o mesmo item. Nesse caso descartamos o formulário
+                //     e devolvemos o código que já existe, em vez de criar outro.
+                Console.WriteLine("🔎 Re-verificando o banco antes de salvar no site...");
+                string codigoExistenteAgora = await VerificarProdutoExistenteNoBanco(
+                    produtoRequest.Descricao,
+                    produtoRequest.NCM,
+                    produtoRequest.Custo);
+
+                if (!string.IsNullOrEmpty(codigoExistenteAgora))
+                {
+                    Console.WriteLine($"💡 Item já cadastrado nesse meio tempo — descartando formulário. Código: {codigoExistenteAgora}");
+                    Estatisticas.ProdutosExistentes++;
+
+                    // Se o formulário for modal na própria página principal, fecha;
+                    // se for aba separada, o finally do método se encarrega.
+                    if (paginaCadastro == paginaPrincipal)
+                    {
+                        await FecharFormularioDescartado(paginaCadastro);
+                    }
+
+                    return ProdutoResponseModel.ProdutoExistenteResponse(
+                        codigoExistenteAgora,
+                        produtoRequest.Descricao,
+                        produtoRequest.RequestId);
+                }
+
                 // 7. VERIFICAÇÃO CRÍTICA: Verifica se já tem código (já foi salvo anteriormente)
                 Console.WriteLine("🔍 Verificando se formulário já foi salvo...");
                 bool formularioJaSalvo = await FormularioHelper.VerificarSeFormularioFoiSalvo(paginaCadastro);
@@ -346,14 +394,36 @@ namespace HSE.Automation.Services
                     throw new Exception("Código não foi gerado ou capturado");
                 }
 
-                // 8. Salva no banco de dados JSON
-                await SalvarProdutoNoBancoJson(
+                // 8. Salva no banco de dados JSON (a gravação recusa duplicidade)
+                var resultadoGravacao = await SalvarProdutoNoBancoJson(
                     codigoGerado,
                     produtoRequest,
                     grupoId,
+                    grupoNome,
                     precoVenda,
                     paginaCadastro,
                     marcasDisponiveis);
+
+                // B. Se o banco recusou por já existir um item equivalente, a resposta
+                //    é o CÓDIGO QUE JÁ EXISTIA — nunca um código que não foi gravado.
+                if (resultadoGravacao != null &&
+                    !resultadoGravacao.Sucesso &&
+                    !string.IsNullOrEmpty(resultadoGravacao.CodigoExistente))
+                {
+                    Console.WriteLine($"💡 Item já constava no banco — respondendo com o código existente: {resultadoGravacao.CodigoExistente}");
+                    Estatisticas.ProdutosExistentes++;
+
+                    return ProdutoResponseModel.ProdutoExistenteResponse(
+                        resultadoGravacao.CodigoExistente,
+                        produtoRequest.Descricao,
+                        produtoRequest.RequestId);
+                }
+
+                if (resultadoGravacao != null && !resultadoGravacao.Sucesso)
+                {
+                    // Produto está salvo no SITE, mas o JSON da rede não foi atualizado
+                    Console.WriteLine($"⚠️ Atenção: produto {codigoGerado} cadastrado no site mas NÃO gravado no JSON: {resultadoGravacao.Mensagem}");
+                }
 
                 Estatisticas.CadastradosComSucesso++;
 
@@ -570,68 +640,59 @@ namespace HSE.Automation.Services
         {
             try
             {
-                var mensagem = await JsonDatabaseService.VerificarProdutoExistente(descricao, ncm, custo);
+                // 1) Busca APENAS pela descrição. NCM e custo podem divergir para o
+                //    mesmo item (ex.: 92081000 x 8528.62.00), então não servem para
+                //    descartar candidatos. Também cobre redações diferentes do
+                //    mesmo produto.
+                var candidatos = await JsonDatabaseService.BuscarPorDescricaoSimilar(descricao);
 
-                if (!string.IsNullOrEmpty(mensagem))
+                foreach (var candidato in candidatos)
                 {
-                    var match = Regex.Match(mensagem, @"Código\s+(\S+)");
-                    if (match.Success)
+                    if (SaoProdutosDiferentes(candidato.Descricao, descricao))
                     {
-                        // VERIFICAÇÃO ADICIONAL: Obtém o produto completo
-                        var codigo = match.Groups[1].Value;
-                        var produtoCompleto = await JsonDatabaseService.ObterProdutoPorCodigo(codigo);
-
-                        if (produtoCompleto != null)
-                        {
-                            // Verifica se a descrição é realmente a mesma
-                            if (produtoCompleto.Descricao.Trim().Equals(descricao.Trim(), StringComparison.OrdinalIgnoreCase))
-                            {
-                                Console.WriteLine($"   ✅ Produto exatamente igual encontrado no banco: {codigo}");
-                                return codigo;
-                            }
-                            else
-                            {
-                                Console.WriteLine($"   ⚠️ Código encontrado mas descrição diferente:");
-                                Console.WriteLine($"      Banco: {produtoCompleto.Descricao}");
-                                Console.WriteLine($"      Busca: {descricao}");
-                                // Continua procurando...
-                            }
-                        }
+                        Console.WriteLine($"   ⚠️ Candidato descartado (mesma base, números diferentes): {candidato.CodigoProduto}");
+                        Console.WriteLine($"      Banco: {candidato.Descricao}");
+                        Console.WriteLine($"      Busca: {descricao}");
+                        continue;
                     }
 
-                    // Busca mais específica por descrição
-                    var produtos = await JsonDatabaseService.BuscarPorDescricao(descricao);
+                    Console.WriteLine($"   ✅ Produto já cadastrado (descrição equivalente): {candidato.CodigoProduto}");
+                    Console.WriteLine($"      Banco: {candidato.Descricao}");
+                    Console.WriteLine($"      Busca: {descricao}");
+                    return candidato.CodigoProduto;
+                }
 
-                    // Primeiro tenta encontrar exatamente igual
-                    var produtoExato = produtos
-                        .FirstOrDefault(p => p.Descricao.Trim().Equals(descricao.Trim(), StringComparison.OrdinalIgnoreCase));
+                // 2) Fallback: descrição do banco que contenha a busca informada
+                var produtos = await JsonDatabaseService.BuscarPorDescricao(descricao);
 
-                    if (produtoExato != null)
+                var produtoExato = produtos
+                    .FirstOrDefault(p => (p.Descricao ?? "").Trim().Equals(descricao.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                if (produtoExato != null)
+                {
+                    Console.WriteLine($"   ✅ Descrição EXATA encontrada no banco: {produtoExato.CodigoProduto}");
+                    return produtoExato.CodigoProduto;
+                }
+
+                // 3) Último recurso (descrições muito genéricas): NCM + custo
+                var produtoCorrespondente = produtos
+                    .Where(p => p.NCM == ncm && custo > 0 && Math.Abs(p.Custo - custo) <= (custo * 0.1m))
+                    .OrderByDescending(p => p.DataCadastro)
+                    .FirstOrDefault();
+
+                if (produtoCorrespondente != null)
+                {
+                    // Verifica se não é apenas variação de tamanho/cor
+                    if (!SaoProdutosDiferentes(produtoCorrespondente.Descricao, descricao))
                     {
-                        Console.WriteLine($"   ✅ Descrição EXATA encontrada no banco: {produtoExato.CodigoProduto}");
-                        return produtoExato.CodigoProduto;
+                        Console.WriteLine($"   ✅ Produto correspondente encontrado no banco: {produtoCorrespondente.CodigoProduto}");
+                        return produtoCorrespondente.CodigoProduto;
                     }
-
-                    // Se não encontrar exato, procura por correspondência mais precisa
-                    var produtoCorrespondente = produtos
-                        .Where(p => p.NCM == ncm && Math.Abs(p.Custo - custo) <= (custo * 0.1m))
-                        .OrderByDescending(p => p.DataCadastro)
-                        .FirstOrDefault();
-
-                    if (produtoCorrespondente != null)
+                    else
                     {
-                        // Verifica se não é apenas variação de tamanho/cor
-                        if (!SaoProdutosDiferentes(produtoCorrespondente.Descricao, descricao))
-                        {
-                            Console.WriteLine($"   ✅ Produto correspondente encontrado no banco: {produtoCorrespondente.CodigoProduto}");
-                            return produtoCorrespondente.CodigoProduto;
-                        }
-                        else
-                        {
-                            Console.WriteLine($"   ⚠️ Produto similar mas provavelmente diferente:");
-                            Console.WriteLine($"      Banco: {produtoCorrespondente.Descricao}");
-                            Console.WriteLine($"      Busca: {descricao}");
-                        }
+                        Console.WriteLine($"   ⚠️ Produto similar mas provavelmente diferente:");
+                        Console.WriteLine($"      Banco: {produtoCorrespondente.Descricao}");
+                        Console.WriteLine($"      Busca: {descricao}");
                     }
                 }
             }
@@ -648,8 +709,8 @@ namespace HSE.Automation.Services
         /// </summary>
         private static bool SaoProdutosDiferentes(string descricaoBanco, string descricaoBusca)
         {
-            descricaoBanco = descricaoBanco.ToLower().Trim();
-            descricaoBusca = descricaoBusca.ToLower().Trim();
+            descricaoBanco = (descricaoBanco ?? "").ToLower().Trim();
+            descricaoBusca = (descricaoBusca ?? "").ToLower().Trim();
 
             // Se forem exatamente iguais, não são diferentes
             if (descricaoBanco == descricaoBusca)
@@ -1024,10 +1085,11 @@ namespace HSE.Automation.Services
             return null;
         }
 
-        private static async Task SalvarProdutoNoBancoJson(
+        private static async Task<ResultadoGravacaoModel> SalvarProdutoNoBancoJson(
     string codigoGerado,
     ProdutoRequestModel produtoRequest,
     string grupoId,
+    string grupoNome,
     decimal precoVenda, IPage paginaCadastro, Dictionary<string, string>marcasDIsponiveis)
         {
             try
@@ -1079,6 +1141,8 @@ namespace HSE.Automation.Services
                     NCM = produtoRequest.NCM,
                     Custo = produtoRequest.Custo,
                     PrecoVenda = precoVenda,
+                    GrupoId = grupoId,
+                    Grupo = grupoNome,
                     Marca = marcaNome,
                     MarcaId = marcaId,
                     Unidade = "PC",
@@ -1091,8 +1155,18 @@ namespace HSE.Automation.Services
                     Ativo = true
                 };
 
-                await JsonDatabaseService.AdicionarProduto(produtoModel);
-                Console.WriteLine($"   💾 Produto salvo no banco JSON: {codigoGerado}");
+                var resultadoGravacao = await JsonDatabaseService.AdicionarProdutoComVerificacao(produtoModel);
+
+                if (resultadoGravacao.Sucesso)
+                {
+                    Console.WriteLine($"   💾 Produto salvo no banco JSON: {codigoGerado}");
+                }
+                else
+                {
+                    Console.WriteLine($"   ⛔ Produto NÃO salvo no banco JSON: {codigoGerado} — {resultadoGravacao.Mensagem}");
+                }
+
+                return resultadoGravacao;
 
                 // Exibe informação da marca se foi selecionada
                 if (!string.IsNullOrEmpty(marcaId) && marcaId != "1") // Não exibe se for GENÉRICA
@@ -1107,7 +1181,32 @@ namespace HSE.Automation.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"   ⚠️ Erro ao salvar no banco JSON: {ex.Message}");
+                return ResultadoGravacaoModel.Falha($"Erro ao salvar no banco JSON: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Descarta o formulário aberto como modal na própria página principal
+        /// (clica em Cancelar/Fechar). Para formulário em aba separada basta
+        /// fechar a aba — tarefa do finally de ProcessarTarefaAutomaticamente.
+        /// </summary>
+        private static async Task FecharFormularioDescartado(IPage pagina)
+        {
+            if (pagina == null || pagina.IsClosed)
+                return;
+
+            try
+            {
+                var botaoFechar = await pagina.QuerySelectorAsync(
+                    "#btCancelar, #btFechar, button:has-text('Cancelar'), button:has-text('Fechar'), [data-dismiss='modal']");
+
+                if (botaoFechar != null)
+                {
+                    await botaoFechar.ClickAsync();
+                    await Task.Delay(1000);
+                }
+            }
+            catch { }
         }
 
         private static async Task<bool> FecharModalFormulario()

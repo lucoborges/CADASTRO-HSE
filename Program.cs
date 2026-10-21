@@ -109,6 +109,11 @@ namespace HSE.Automation
         }
         static async Task IniciarServicosTriplos(bool groqTestResult, GroqClient groqClient)
         {
+            // Inicializa o banco de dados JSON dos produtos
+            // (\\SERVIDOR2\Publico\ALLAN\database\produtos-data.json)
+            Console.WriteLine("\n🗄️ INICIALIZANDO BANCO DE DADOS DE PRODUTOS...");
+            await JsonDatabaseService.InitializeDatabase();
+
             // Lista de tarefas a executar
             var tasks = new List<Task>();
 
@@ -240,6 +245,7 @@ namespace HSE.Automation
                                 sucesso = true,
                                 codigoTarefa = codigoTarefa,
                                 codigoProduto = resultado.CodigoProduto,
+                                produtoExistente = resultado.EProdutoExistente(),
                                 mensagem = resultado.Mensagem,
                                 dataProcessamento = DateTime.UtcNow,
                                 gatewayProcessado = true,
