@@ -763,24 +763,7 @@ namespace HSE.Automation.Services
 
                                     novaAba = context.Pages.Last();
                                     await novaAba.BringToFrontAsync();
-                                    Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE EDITAR...");
-                                    var botaoEditar = await novaAba.QuerySelectorAsync("#btEditar, button:has-text('Editar'), button:has-text('EDITAR'), .btEditar, .btn-editar");
 
-                                    if (botaoEditar != null)
-                                    {
-                                        Console.WriteLine("✅ Botão de editar encontrado");
-
-                                        // Aguarda um pouco antes de clicar
-                                        await Task.Delay(1000);
-
-                                        // Tenta salvar e captura qualquer exceção
-                                        Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'EDITAR'...");
-                                        await botaoEditar.ClickAsync();
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine("❌ Botão editar não encontrado");
-                                    }
                                     var tambemECliente = await novaAba.QuerySelectorAsync("#idClienteFornecedor");
 
                                     if (tambemECliente != null)

@@ -92,6 +92,59 @@ namespace HSE.Automation.Models
         };
 
         /// <summary>
+        /// true  => cor precisa ser idêntica nos dois lados; um lado sem cor já é
+        ///          outro produto ("M170 AZUL" x "M170" => produtos diferentes).
+        /// false => cor só desqualifica quando os DOIS lados informam cores
+        ///          diferentes ("AZUL" x "PRETO").
+        /// Pode ser alterado em tempo de execução para afrouxar a regra.
+        /// </summary>
+        public static bool ExigirCorIgual = true;
+
+        /// <summary>
+        /// true  => a voltagem precisa ser idêntica nos dois lados; um lado sem
+        ///          informação de voltagem já é outro produto
+        ///          ("ME36B 220V" x "ME36B" => produtos diferentes).
+        /// false => voltagem só desqualifica quando os dois lados informam e diferem.
+        /// Pode ser alterado em tempo de execução para afrouxar a regra.
+        /// </summary>
+        public static bool ExigirVoltagemIgual = true;
+
+        /// <summary>
+        /// Voltagens de rede usadas para interpretar formas como "110/220V"
+        /// (número solto seguido/precedido de um marcador "V").
+        /// </summary>
+        private static readonly HashSet<string> ValoresDeVoltagem = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "110", "115", "120", "125", "127", "200", "208", "220", "225", "230", "240", "277", "380", "440"
+        };
+
+        /// <summary>
+        /// Cores/acabamentos que identificam a variante do produto.
+        /// Chave = token já normalizado (minúsculo e sem acento) => cor canônica.
+        /// Inclui feminino/plural e equivalentes em inglês.
+        /// </summary>
+        private static readonly Dictionary<string, string> Cores = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            { "preto", "PRETO" }, { "preta", "PRETO" }, { "pretos", "PRETO" }, { "pretas", "PRETO" }, { "black", "PRETO" },
+            { "branco", "BRANCO" }, { "branca", "BRANCO" }, { "brancos", "BRANCO" }, { "brancas", "BRANCO" }, { "white", "BRANCO" },
+            { "azul", "AZUL" }, { "azuis", "AZUL" }, { "blue", "AZUL" },
+            { "vermelho", "VERMELHO" }, { "vermelha", "VERMELHO" }, { "vermelhos", "VERMELHO" }, { "vermelhas", "VERMELHO" }, { "red", "VERMELHO" },
+            { "verde", "VERDE" }, { "verdes", "VERDE" }, { "green", "VERDE" },
+            { "amarelo", "AMARELO" }, { "amarela", "AMARELO" }, { "amarelos", "AMARELO" }, { "amarelas", "AMARELO" }, { "yellow", "AMARELO" },
+            { "laranja", "LARANJA" },
+            { "cinza", "CINZA" }, { "gray", "CINZA" }, { "grey", "CINZA" },
+            { "prata", "PRATA" }, { "silver", "PRATA" },
+            { "dourado", "DOURADO" }, { "dourada", "DOURADO" }, { "dourados", "DOURADO" }, { "douradas", "DOURADO" }, { "gold", "DOURADO" },
+            { "rosa", "ROSA" }, { "pink", "ROSA" },
+            { "roxo", "ROXO" }, { "roxa", "ROXO" }, { "roxos", "ROXO" }, { "roxas", "ROXO" }, { "violeta", "ROXO" }, { "purple", "ROXO" },
+            { "marrom", "MARROM" }, { "brown", "MARROM" },
+            { "bege", "BEGE" },
+            { "grafite", "GRAFITE" }, { "grafito", "GRAFITE" }, { "chumbo", "GRAFITE" },
+            { "creme", "CREME" }, { "bordo", "BORDO" },
+            { "transparente", "TRANSPARENTE" }
+        };
+
+        /// <summary>
         /// Verifica se dois produtos são o MESMO item de estoque.
         /// A comparação é feita somente pela descrição.
         /// </summary>
@@ -128,6 +181,38 @@ namespace HSE.Automation.Models
             // distintos (ex.: L530U x L630U, G512 x G515, 2M x 5M).
             if (codigosA.Count > 0 && codigosB.Count > 0 && !CodigosEmComum(codigosA, codigosB))
                 return false;
+
+            // COR / ACABAMENTO: cor é variante do produto. Se um lado informa cor e
+            // o outro não, ou se informam cores diferentes, são produtos distintos
+            // (ex.: "MOUSE LOGITECH S/FIO M170 AZUL" x "MOUSE SEM FIO LOGITECH M170").
+            var coresA = ExtrairCores(Tokenizar(a));
+            var coresB = ExtrairCores(Tokenizar(b));
+
+            if (ExigirCorIgual)
+            {
+                if (!coresA.SetEquals(coresB))
+                    return false;
+            }
+            else if (coresA.Count > 0 && coresB.Count > 0 && !coresA.SetEquals(coresB))
+            {
+                return false;
+            }
+
+            // VOLTAGEM: mesmo produto em 110V/220V são itens diferentes de estoque.
+            // Se um lado não informa a voltagem, também é outro produto
+            // (ex.: "ME36B 220V" x "ME36B").
+            var voltagensA = ExtrairVoltagens(Tokenizar(a));
+            var voltagensB = ExtrairVoltagens(Tokenizar(b));
+
+            if (ExigirVoltagemIgual)
+            {
+                if (!voltagensA.SetEquals(voltagensB))
+                    return false;
+            }
+            else if (voltagensA.Count > 0 && voltagensB.Count > 0 && !voltagensA.SetEquals(voltagensB))
+            {
+                return false;
+            }
 
             // Variantes curtas de tamanho (G x M, P x G): se os dois lados
             // informam e não coincidem, são itens distintos.
@@ -217,6 +302,14 @@ namespace HSE.Automation.Models
             if (string.Equals(a, b, StringComparison.Ordinal))
                 return true;
 
+            // Mesma cor com flexão/idioma diferente: "preto" x "preta" x "black"
+            if (Cores.TryGetValue(a, out string corA) &&
+                Cores.TryGetValue(b, out string corB) &&
+                corA == corB)
+            {
+                return true;
+            }
+
             // Plural / abreviação: "extavado" x "sextavados"
             int menor = Math.Min(a.Length, b.Length);
             if (menor >= 4 && (a.Contains(b, StringComparison.Ordinal) || b.Contains(a, StringComparison.Ordinal)))
@@ -254,7 +347,109 @@ namespace HSE.Automation.Models
         }
 
         /// <summary>
-        /// Extrai variações curtas de tamanho em letras (G, M, P, GG, XG).
+        /// Cores citadas na descrição, na forma canônica ("AZUL", "PRETO"...).
+        /// </summary>
+        private static HashSet<string> ExtrairCores(List<string> tokens)
+        {
+            var cores = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var token in tokens)
+            {
+                if (Cores.TryGetValue(token, out string canonica))
+                    cores.Add(canonica);
+            }
+
+            return cores;
+        }
+
+        /// <summary>
+        /// Voltagens citadas na descrição, em forma canônica ("220v", "bivolt").
+        /// Reconhece "220V", "220 v", "220 volts" e "110/220V"; duas voltagens
+        /// (ou "bivolt") são tratadas como uma única condição de uso.
+        /// </summary>
+        private static HashSet<string> ExtrairVoltagens(List<string> tokens)
+        {
+            var voltagens = new HashSet<string>(StringComparer.Ordinal);
+
+            // Só números soltos contam como voltagem quando existe UM marcador
+            // claro na frase ("220v", "volt"...), para não confundir "220" de
+            // "BANDEJA 220" com tensão elétrica.
+            bool temMarcador = tokens.Any(EhMarcadorDeVoltagem);
+
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                string token = tokens[i];
+
+                if (EhVoltagemComposta(token))                                   // "220v", "12v"
+                {
+                    voltagens.Add(token);
+                }
+                else if ((token == "v" || token == "volt" || token == "volts") &&
+                         i > 0 && ValoresDeVoltagem.Contains(tokens[i - 1]))     // "220 volts"
+                {
+                    voltagens.Add(tokens[i - 1] + "v");
+                }
+                else if (token == "bivolt" || token == "bivolta" ||
+                         token == "bivoltos" || token == "bivolts")
+                {
+                    voltagens.Add("bivolt");
+                }
+                else if (temMarcador &&
+                         ValoresDeVoltagem.Contains(token) &&
+                         i + 1 < tokens.Count &&
+                         EhMarcadorDeVoltagem(tokens[i + 1]))                     // "110/220V" => "110 220v"
+                {
+                    voltagens.Add(token + "v");
+                }
+            }
+
+            // Duas voltagens (ou bivolt) = mesma condição de uso
+            if (voltagens.Contains("bivolt") || voltagens.Count >= 2)
+            {
+                return new HashSet<string>(StringComparer.Ordinal) { "bivolt" };
+            }
+
+            return voltagens;
+        }
+
+        /// <summary>Token que marca voltagem: "220v", "v", "volt", "volts".</summary>
+        private static bool EhMarcadorDeVoltagem(string token)
+        {
+            return EhVoltagemComposta(token) ||
+                   token == "v" || token == "volt" || token == "volts";
+        }
+
+        /// <summary>Número seguido de "v" (sem Regex, para a varredura do banco).</summary>
+        private static bool EhVoltagemComposta(string token)
+        {
+            if (string.IsNullOrEmpty(token) || token.Length > 5 || token[token.Length - 1] != 'v')
+                return false;
+
+            bool temDigito = false;
+
+            for (int i = 0; i < token.Length - 1; i++)
+            {
+                if (!char.IsDigit(token[i]))
+                    return false;
+
+                temDigito = true;
+            }
+
+            return temDigito;
+        }
+
+        /// <summary>
+        /// Rótulos de tamanho que distinguem variantes (G x M, P x G, GG x P).
+        /// Só são considerados variações os tokens exatamente estes — nunca
+        /// palavras comuns de 3 letras como "FIO", "USB" ou "LED".
+        /// </summary>
+        private static readonly HashSet<string> TamanhosConhecidos = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "p", "m", "g", "s", "pp", "gg", "xg", "xgg", "min", "med", "max", "un"
+        };
+
+        /// <summary>
+        /// Extrai variações de tamanho em letras (G, M, P, GG, XG).
         /// Números são tratados pela regra de numeração de EhMesmoProduto.
         /// </summary>
         private static HashSet<string> ExtrairVariacoes(List<string> tokens)
@@ -263,7 +458,7 @@ namespace HSE.Automation.Models
 
             foreach (var token in tokens)
             {
-                if (token.Length <= 3 && token.Any(char.IsLetter) && !token.Any(char.IsDigit))
+                if (TamanhosConhecidos.Contains(token) && !token.Any(char.IsDigit))
                     variacoes.Add(token);
             }
 
