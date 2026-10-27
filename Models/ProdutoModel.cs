@@ -182,6 +182,15 @@ namespace HSE.Automation.Models
             if (codigosA.Count > 0 && codigosB.Count > 0 && !CodigosEmComum(codigosA, codigosB))
                 return false;
 
+            // SUFIXO DO MODELO: sufixo que segue um número de referência
+            // ("19181-BRA" x "19181-PRE", "19181 PLUS" x "19181 MAX") identifica
+            // variante do mesmo número de série => produtos diferentes.
+            var sufixosA = ExtrairSufixosDeModelo(Tokenizar(a));
+            var sufixosB = ExtrairSufixosDeModelo(Tokenizar(b));
+
+            if (sufixosA.Count > 0 && sufixosB.Count > 0 && !sufixosA.SetEquals(sufixosB))
+                return false;
+
             // COR / ACABAMENTO: cor é variante do produto. Se um lado informa cor e
             // o outro não, ou se informam cores diferentes, são produtos distintos
             // (ex.: "MOUSE LOGITECH S/FIO M170 AZUL" x "MOUSE SEM FIO LOGITECH M170").
@@ -463,6 +472,34 @@ namespace HSE.Automation.Models
             }
 
             return variacoes;
+        }
+
+        /// <summary>
+        /// Sufixo curto que segue um token com número de referência: "19181-BRA",
+        /// "19181 PRE", "ME36B PLUS". É a marca de variante do mesmo número de
+        /// série — "19181-BRA" x "19181-PRE" são produtos diferentes.
+        /// Voltagens ficam de fora (a regra de voltagem já as cobre) e tokens com
+        /// mais de 4 caracteres não são sufixo (são palavras normais).
+        /// </summary>
+        private static HashSet<string> ExtrairSufixosDeModelo(List<string> tokens)
+        {
+            var sufixos = new HashSet<string>(StringComparer.Ordinal);
+
+            for (int i = 1; i < tokens.Count; i++)
+            {
+                string token = tokens[i];
+
+                if (token.Length > 4)
+                    continue;
+
+                if (EhMarcadorDeVoltagem(token) || ValoresDeVoltagem.Contains(token))
+                    continue;
+
+                if (tokens[i - 1].Any(char.IsDigit))
+                    sufixos.Add(token);
+            }
+
+            return sufixos;
         }
 
         /// <summary>Descrição sem nenhum dígito (espaços normalizados).</summary>
