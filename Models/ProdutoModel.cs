@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -110,6 +111,14 @@ namespace HSE.Automation.Models
         public static bool ExigirVoltagemIgual = true;
 
         /// <summary>
+        /// true  => a marca precisa ser idêntica nos dois lados; um lado sem marca
+        ///          já é outro produto ("TOALHA PREMISSE" x "TOALHA" => diferentes).
+        /// false => marca só desqualifica quando os dois lados informam e diferem.
+        /// Pode ser alterado em tempo de execução para afrouxar a regra.
+        /// </summary>
+        public static bool ExigirMarcaIgual = true;
+
+        /// <summary>
         /// Voltagens de rede usadas para interpretar formas como "110/220V"
         /// (número solto seguido/precedido de um marcador "V").
         /// </summary>
@@ -145,6 +154,104 @@ namespace HSE.Automation.Models
         };
 
         /// <summary>
+        /// Semente estática do vocabulário de marcas. Marca já cadastrada no
+        /// banco entra pelo <see cref="AdicionarMarcasConhecidas"/> no load.
+        /// </summary>
+        private static readonly string[] SementesDeMarca =
+        {
+            // caso já relatado (não consta no campo descricao_marca do banco)
+            "premisse",
+            // marcas comuns que aparecem coladas na descrição do produto
+            "tilibra", "pentel", "papermate", "stabilo", "sharpie", "faber", "castell",
+            "mondial", "tramontina", "philco", "consul", "brastemp", "arno", "cadence",
+            "metzer", "esmaltec", "teil", "wonder", "britania"
+        };
+
+        /// <summary>
+        /// Vocabulário de marcas reconhecidas nas descrições (minúsculas e sem
+        /// acento). Junta a semente estática com as marcas aprendidas do banco
+        /// (campo descricao_marca). ConcurrentDictionary porque o banco pode
+        /// recarregar durante uma busca.
+        /// </summary>
+        private static readonly ConcurrentDictionary<string, byte> Marcas = CriarVocabularioDeMarcas();
+
+        private static ConcurrentDictionary<string, byte> CriarVocabularioDeMarcas()
+        {
+            var vocabulario = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+
+            foreach (var marca in SementesDeMarca)
+                vocabulario.TryAdd(marca, 0);
+
+            return vocabulario;
+        }
+
+        /// <summary>
+        /// Aprende marcas do banco (campo descricao_marca) para que qualquer
+        /// marca já cadastrada seja reconhecida sem precisar de código novo.
+        /// Só entram no vocabulário marcas de UMA palavra com 3+ letras: em marcas
+        /// compostas ("EPSON-PROJETOR", "BLACK BOX") o token isolado poderia ser
+        /// palavra comum de produto ("PROJETOR") e casaria com descrições sem
+        /// marca nenhuma.
+        /// </summary>
+        public static void AdicionarMarcasConhecidas(IEnumerable<string> marcas)
+        {
+            if (marcas == null)
+                return;
+
+            foreach (var marca in marcas)
+            {
+                if (string.IsNullOrWhiteSpace(marca))
+                    continue;
+
+                string normalizada = NormalizarDescricao(marca);
+
+                if (normalizada.Length == 0 || normalizada.Contains(' '))
+                    continue;
+
+                if (normalizada.Length < 3 || normalizada.Any(char.IsDigit))
+                    continue;
+
+                if (normalizada == "null" || StopWords.Contains(normalizada))
+                    continue;
+
+                Marcas.TryAdd(normalizada, 0);
+            }
+        }
+
+        /// <summary>
+        /// Descrição usada na comparação: acrescenta a marca quando ela existe
+        /// apenas no campo marca (99% dos registros já trazem a marca dentro da
+        /// descrição). Sem isso, "TECLADO K120" com marca LOGITECH no campo seria
+        /// lido como item sem marca e não casaria com "TECLADO LOGITECH K120".
+        /// </summary>
+        [JsonIgnore]
+        public string DescricaoComparavel
+        {
+            get
+            {
+                string descricao = Descricao ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(Marca))
+                    return descricao;
+
+                string marca = NormalizarDescricao(Marca);
+
+                if (marca.Length == 0)
+                    return descricao;
+
+                // Já contém a marca na descrição? Não duplica (mantém o caminho
+                // de igualdade exata intacto).
+                var descricaoNormalizada = NormalizarDescricao(descricao).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var marcaNormalizada = marca.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                if (marcaNormalizada.All(parte => descricaoNormalizada.Contains(parte)))
+                    return descricao;
+
+                return descricao + " " + Marca;
+            }
+        }
+
+        /// <summary>
         /// Verifica se dois produtos são o MESMO item de estoque.
         /// A comparação é feita somente pela descrição.
         /// </summary>
@@ -155,7 +262,7 @@ namespace HSE.Automation.Models
 
             // toleranciaCusto permanece na assinatura por compatibilidade,
             // mas não é mais usada: o custo/NCM não desqualifica o item.
-            return EhMesmoProduto(Descricao, outroProduto.Descricao, toleranciaDescricao);
+            return EhMesmoProduto(DescricaoComparavel, outroProduto.DescricaoComparavel, toleranciaDescricao);
         }
 
         /// <summary>
@@ -174,6 +281,11 @@ namespace HSE.Automation.Models
             if (string.Equals(a, b, StringComparison.Ordinal))
                 return true;
 
+            // Tokenização única, reaproveitada por todas as regras abaixo
+            // (a comparação varre o banco inteiro a cada chamada).
+            var tokensA = Tokenizar(a);
+            var tokensB = Tokenizar(b);
+
             var codigosA = ExtrairCodigosModelo(a);
             var codigosB = ExtrairCodigosModelo(b);
 
@@ -185,17 +297,34 @@ namespace HSE.Automation.Models
             // SUFIXO DO MODELO: sufixo que segue um número de referência
             // ("19181-BRA" x "19181-PRE", "19181 PLUS" x "19181 MAX") identifica
             // variante do mesmo número de série => produtos diferentes.
-            var sufixosA = ExtrairSufixosDeModelo(Tokenizar(a));
-            var sufixosB = ExtrairSufixosDeModelo(Tokenizar(b));
+            var sufixosA = ExtrairSufixosDeModelo(tokensA);
+            var sufixosB = ExtrairSufixosDeModelo(tokensB);
 
             if (sufixosA.Count > 0 && sufixosB.Count > 0 && !sufixosA.SetEquals(sufixosB))
                 return false;
 
+            // MARCA: identifica o fabricante do item. Se um lado informa a marca
+            // e o outro não, ou se informam marcas diferentes, são produtos
+            // distintos (ex.: "SUPORTE PAPEL TOALHA PREMISSE" x "SUPORTE PAPEL
+            // TOALHA" => itens diferentes de estoque).
+            var marcasA = ExtrairMarcas(tokensA);
+            var marcasB = ExtrairMarcas(tokensB);
+
+            if (ExigirMarcaIgual)
+            {
+                if (!marcasA.SetEquals(marcasB))
+                    return false;
+            }
+            else if (marcasA.Count > 0 && marcasB.Count > 0 && !marcasA.SetEquals(marcasB))
+            {
+                return false;
+            }
+
             // COR / ACABAMENTO: cor é variante do produto. Se um lado informa cor e
             // o outro não, ou se informam cores diferentes, são produtos distintos
             // (ex.: "MOUSE LOGITECH S/FIO M170 AZUL" x "MOUSE SEM FIO LOGITECH M170").
-            var coresA = ExtrairCores(Tokenizar(a));
-            var coresB = ExtrairCores(Tokenizar(b));
+            var coresA = ExtrairCores(tokensA);
+            var coresB = ExtrairCores(tokensB);
 
             if (ExigirCorIgual)
             {
@@ -210,8 +339,8 @@ namespace HSE.Automation.Models
             // VOLTAGEM: mesmo produto em 110V/220V são itens diferentes de estoque.
             // Se um lado não informa a voltagem, também é outro produto
             // (ex.: "ME36B 220V" x "ME36B").
-            var voltagensA = ExtrairVoltagens(Tokenizar(a));
-            var voltagensB = ExtrairVoltagens(Tokenizar(b));
+            var voltagensA = ExtrairVoltagens(tokensA);
+            var voltagensB = ExtrairVoltagens(tokensB);
 
             if (ExigirVoltagemIgual)
             {
@@ -225,8 +354,8 @@ namespace HSE.Automation.Models
 
             // Variantes curtas de tamanho (G x M, P x G): se os dois lados
             // informam e não coincidem, são itens distintos.
-            var variacoesA = ExtrairVariacoes(Tokenizar(a));
-            var variacoesB = ExtrairVariacoes(Tokenizar(b));
+            var variacoesA = ExtrairVariacoes(tokensA);
+            var variacoesB = ExtrairVariacoes(tokensB);
 
             if (variacoesA.Count > 0 && variacoesB.Count > 0 && !variacoesA.SetEquals(variacoesB))
                 return false;
@@ -245,7 +374,7 @@ namespace HSE.Automation.Models
                     return false;
             }
 
-            return CalcularSimilaridade(a, b) >= toleranciaDescricao;
+            return CalcularSimilaridade(tokensA, tokensB) >= toleranciaDescricao;
         }
 
         /// <summary>
@@ -278,9 +407,12 @@ namespace HSE.Automation.Models
         /// </summary>
         public static double CalcularSimilaridade(string s1, string s2)
         {
-            var t1 = Tokenizar(s1);
-            var t2 = Tokenizar(s2);
+            return CalcularSimilaridade(Tokenizar(s1), Tokenizar(s2));
+        }
 
+        /// <summary>Coeficiente de Dice sobre tokens já normalizados.</summary>
+        private static double CalcularSimilaridade(List<string> t1, List<string> t2)
+        {
             if (t1.Count == 0 || t2.Count == 0)
                 return 0.0;
 
@@ -369,6 +501,23 @@ namespace HSE.Automation.Models
             }
 
             return cores;
+        }
+
+        /// <summary>
+        /// Marcas citadas na descrição, contra o vocabulário (<see cref="Marcas"/>)
+        /// que reúne a semente estática e as marcas aprendidas do banco.
+        /// </summary>
+        private static HashSet<string> ExtrairMarcas(List<string> tokens)
+        {
+            var marcas = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var token in tokens)
+            {
+                if (Marcas.ContainsKey(token))
+                    marcas.Add(token);
+            }
+
+            return marcas;
         }
 
         /// <summary>

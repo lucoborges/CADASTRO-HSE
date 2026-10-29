@@ -147,6 +147,10 @@ namespace HSE.Automation.Services
                     _gravacaoPermitida = true;
                     _ultimaModificacaoUtc = File.GetLastWriteTimeUtc(_databasePath);
 
+                    // Marca do campo "descricao_marca" passa a ser reconhecida
+                    // também quando ela aparece só na descrição de outro produto.
+                    ProdutoModel.AdicionarMarcasConhecidas(produtos.Select(p => p.Marca));
+
                     Console.WriteLine($"📁 Banco de dados carregado: {_produtosCache.Count} produtos cadastrados");
                     Console.WriteLine($"   • Formato do arquivo: {(formatoExterno ? "externo (cod_produto, descricao_produto, dt_cadastro, ...)" : "interno (codigoProduto, descricao, dataCadastro, ...)")}");
 
@@ -385,6 +389,9 @@ namespace HSE.Automation.Services
 
             _produtosCache = mesclados;
             _formatoArquivoExterno = formatoExterno;
+
+            // Mesmas marcas novas que tenham entrado no arquivo
+            ProdutoModel.AdicionarMarcasConhecidas(produtos.Select(p => p.Marca));
         }
 
         // -----------------------------------------------------------------
@@ -513,7 +520,7 @@ namespace HSE.Automation.Services
                 return new List<ProdutoModel>();
 
             return _produtosCache
-                .Where(p => ProdutoModel.EhMesmoProduto(p.Descricao, descricao, tolerancia))
+                .Where(p => ProdutoModel.EhMesmoProduto(p.DescricaoComparavel, descricao, tolerancia))
                 .OrderByDescending(p => p.DataCadastro)
                 .ToList();
         }
