@@ -119,6 +119,16 @@ namespace HSE.Automation.Models
         public static bool ExigirMarcaIgual = true;
 
         /// <summary>
+        /// true  => descrições onde CADA lado traz palavras sem par na outra são
+        ///          produtos diferentes: é como aparecem nome de modelo/coleção
+        ///          trocado ("PORTO BRASIL MADELEINE" x "PORTO BRASIL ROMA").
+        /// false => só o Dice decide (comportamento antigo).
+        /// Palavras de UM único lado continuam sendo detalhe extra ("G512" x
+        /// "G512 RGB") e continuam casando.
+        /// </summary>
+        public static bool PermitirTrocaDePalavras = false;
+
+        /// <summary>
         /// Voltagens de rede usadas para interpretar formas como "110/220V"
         /// (número solto seguido/precedido de um marcador "V").
         /// </summary>
@@ -374,7 +384,34 @@ namespace HSE.Automation.Models
                     return false;
             }
 
-            return CalcularSimilaridade(tokensA, tokensB) >= toleranciaDescricao;
+            if (tokensA.Count == 0 || tokensB.Count == 0)
+                return false;
+
+            // Correspondências entre as palavras (a mesma contagem do Dice).
+            int casadasA = 0;
+            foreach (var token in tokensA)
+            {
+                if (tokensB.Any(p => SaoMesmaPalavra(token, p)))
+                    casadasA++;
+            }
+
+            // TROCA DE PALAVRAS: um item real não "troca" nome próprio de um lado
+            // para o outro. Se as descrições batem quase tudo MAS cada lado traz
+            // palavra(s) sem par na outra, são variantes de modelo/coleção com o
+            // mesmo formato (ex.: "APARELHO JANTAR PORTO BRASIL MADELEINE BRANCO
+            // 42 PEÇAS" x "APARELHO JANTAR PORTO BRASIL ROMA | CERÂMICA, 42 PEÇAS,
+            // BRANCO"). Palavras só de UM lado continuam sendo detalhe extra que o
+            // Dice tolera ("G512" x "G512 RGB", "CABO HDMI" x "CABO HDMI 2M").
+            if (!PermitirTrocaDePalavras &&
+                casadasA < tokensA.Count &&
+                tokensB.Any(t => !tokensA.Any(p => SaoMesmaPalavra(t, p))))
+            {
+                return false;
+            }
+
+            // Dice final — mesma fórmula de CalcularSimilaridade, reaproveitando
+            // a contagem acima para não refazer a varredura das palavras.
+            return (2.0 * casadasA) / (tokensA.Count + tokensB.Count) >= toleranciaDescricao;
         }
 
         /// <summary>
