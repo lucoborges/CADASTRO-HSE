@@ -1,39 +1,24 @@
-name: Deploy Automático via SSH
+name: Deploy Automático Local
 
 on:
   push:
-    branches: [master] # Altere para 'master' se sua branch principal se chamar assim
+    branches: [master]
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # A MÁGICA: roda no seu servidor, NÃO na nuvem do GitHub
+    runs-on: self-hosted 
     
     steps:
-      - name: Conectar e executar Deploy no Servidor Windows
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            # 1. Entra na pasta do seu projeto no servidor
-            cd C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE
-            
-            # 2. Puxa as atualizações do GitHub
-            git pull origin master
-            
-            # =========================================================
-            # 3. COMANDOS ESPECÍFICOS POR TECNOLOGIA (Descomente o seu)
-            # =========================================================
-            
-            # 🟢 PARA .NET (Seu caso): Reinicia o IIS para aplicar as mudanças
-            iisreset
-            
-            # 🟡 PARA NODE.JS (Seu colega): Instala pacotes e reinicia o PM2
-            # npm install
-            # pm2 restart todos
-            
-            # 🔵 PARA PHP: Atualiza dependências
-            # composer install --no-dev
-            
-            echo "✅ Deploy realizado com sucesso!"
+      - name: Atualizar código e reiniciar IIS
+        run: |
+          # 1. Entra na pasta do projeto (ajuste o caminho se necessário)
+          cd C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE
+          
+          # 2. Puxa as alterações do GitHub
+          git pull origin master
+          
+          # 3. Reinicia o IIS para aplicar as mudanças do .NET
+          iisreset
+          
+          Write-Host "✅ Deploy realizado com sucesso no servidor local!"
