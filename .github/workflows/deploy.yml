@@ -2,7 +2,7 @@ name: Deploy Automático via SSH
 
 on:
   push:
-    branches: [main] # Altere para 'master' se sua branch principal se chamar assim
+    branches: [master] # Altere para 'master' se sua branch principal se chamar assim
 
 jobs:
   deploy:
