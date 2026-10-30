@@ -20,7 +20,7 @@ jobs:
             cd C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE
             
             # 2. Puxa as atualizações do GitHub
-            git pull origin main
+            git pull origin master
             
             # =========================================================
             # 3. COMANDOS ESPECÍFICOS POR TECNOLOGIA (Descomente o seu)
