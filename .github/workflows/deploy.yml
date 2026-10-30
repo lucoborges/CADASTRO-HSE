@@ -6,19 +6,19 @@ on:
 
 jobs:
   deploy:
-    # A MÁGICA: roda no seu servidor, NÃO na nuvem do GitHub
     runs-on: self-hosted 
     
     steps:
-      - name: Atualizar código e reiniciar IIS
+      - name: Atualizar código e reciclar App Pool
         run: |
-          # 1. Entra na pasta do projeto (ajuste o caminho se necessário)
+          # 1. Entra na pasta do projeto
           cd C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE
           
-          # 2. Puxa as alterações do GitHub
+          # 2. Puxa as alterações
           git pull origin master
           
-          # 3. Reinicia o IIS para aplicar as mudanças do .NET
-          iisreset
+          # 3. Recicla o App Pool específico da sua aplicação
+          # IMPORTANTE: Troque "NomeDoSeuAppPool" pelo nome real que você anotou!
+          C:\Windows\System32\inetsrv\appcmd recycle apppool /apppool.name:"DefaultAppPool"
           
-          Write-Host "✅ Deploy realizado com sucesso no servidor local!"
+          Write-Host "✅ Deploy realizado e App Pool reciclado com sucesso!"
