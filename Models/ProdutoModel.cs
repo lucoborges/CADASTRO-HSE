@@ -371,7 +371,11 @@ namespace HSE.Automation.Models
                 return false;
 
             // Mesma descrição ignorando números, porém com numerações diferentes
-            // (38 x 40, 6X50 x 8X60): são variantes distintas.
+            // (38 x 40, 6X50 x 8X60): são variantes distintas. Vale também quando
+            // o número aparece só de UM lado: "PROPE SOLDADO GG" x "PROPE SOLDADO
+            // GG 40" é versão clássica x versão 40, não o mesmo item. Medida com
+            // unidade não é afetada: a letra remanescente muda a base, então
+            // "CABO HDMI" x "CABO HDMI 2M" continua casando como o mesmo item.
             string baseA = SemNumeros(a);
             string baseB = SemNumeros(b);
 
@@ -380,7 +384,7 @@ namespace HSE.Automation.Models
                 var numerosA = ExtrairNumeros(a);
                 var numerosB = ExtrairNumeros(b);
 
-                if (numerosA.Count > 0 && numerosB.Count > 0 && !numerosA.SequenceEqual(numerosB))
+                if (!numerosA.SequenceEqual(numerosB))
                     return false;
             }
 
