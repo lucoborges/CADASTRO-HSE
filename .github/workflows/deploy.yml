@@ -9,20 +9,23 @@ jobs:
     runs-on: self-hosted 
     
     steps:
-      - name: Parar, Atualizar e Reiniciar via Agendador
+      - name: Parar, Atualizar e Reiniciar o Sistema
         run: |
-          $taskName = "HSE-Cadastros-Service"
           $projectPath = "C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE"
           
-          Write-Host "1. Parando o sistema (liberando arquivos)..."
-          Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-          Start-Sleep -Seconds 3 # Aguarda o Windows encerrar o processo dotnet
+          Write-Host "1. Procurando e parando o processo antigo..."
+          # Encontra o processo dotnet que tem o caminho do seu projeto na linha de comando e o encerra
+          Get-WmiObject Win32_Process -Filter "name = 'dotnet.exe'" | Where-Object { $_.CommandLine -like "*HSE-Cadastros*" -or $_.CommandLine -like "*$projectPath*" } | ForEach-Object { $_.Terminate() }
+          
+          # Aguarda 3 segundos para o Windows liberar os arquivos
+          Start-Sleep -Seconds 3
           
           Write-Host "2. Atualizando o código..."
           cd $projectPath
           git pull origin master
           
           Write-Host "3. Iniciando o sistema com o novo código..."
-          Start-ScheduledTask -TaskName $taskName
+          # Inicia o dotnet run na pasta correta, em segundo plano (Hidden)
+          Start-Process -FilePath "C:\Program Files\dotnet\dotnet.exe" -ArgumentList "run" -WorkingDirectory $projectPath -WindowStyle Hidden
           
           Write-Host "✅ Deploy do .NET Core 8.0 realizado com sucesso!"
