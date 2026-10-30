@@ -1,0 +1,39 @@
+name: Deploy Automático via SSH
+
+on:
+  push:
+    branches: [master] # Altere para 'master' se sua branch principal se chamar assim
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Conectar e executar Deploy no Servidor Windows
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            # 1. Entra na pasta do seu projeto no servidor
+            cd C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE
+            
+            # 2. Puxa as atualizações do GitHub
+            git pull origin main
+            
+            # =========================================================
+            # 3. COMANDOS ESPECÍFICOS POR TECNOLOGIA (Descomente o seu)
+            # =========================================================
+            
+            # 🟢 PARA .NET (Seu caso): Reinicia o IIS para aplicar as mudanças
+            iisreset
+            
+            # 🟡 PARA NODE.JS (Seu colega): Instala pacotes e reinicia o PM2
+            # npm install
+            # pm2 restart todos
+            
+            # 🔵 PARA PHP: Atualiza dependências
+            # composer install --no-dev
+            
+            echo "✅ Deploy realizado com sucesso!"
