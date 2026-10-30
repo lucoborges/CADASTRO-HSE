@@ -18,7 +18,7 @@ namespace HSE.Automation
 {
     class Program
     {
-        // TESTANDO GIT ACTIONS
+        // TESTANDO GIT ACTIONS DENOVO
         // Controles globais - ADICIONADO O TERCEIRO PROGRAMA
         private static CancellationTokenSource _cancellationTokenSource;
         private static Task _taskProdutos;
