@@ -18,7 +18,7 @@ namespace HSE.Automation
 {
     class Program
     {
-        // FINALMENTE CONSEGUIMOS CRIAR UM SISTEMA ÚNICO QUE RODA OS TRÊS SERVIÇOS SIMULTANEAMENTE:
+        // JÁ NÃO ESTOU SUPORTANDO MAIS!
         // Controles globais - ADICIONADO O TERCEIRO PROGRAMA
         private static CancellationTokenSource _cancellationTokenSource;
         private static Task _taskProdutos;
