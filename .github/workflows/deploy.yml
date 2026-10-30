@@ -1,4 +1,4 @@
-name: Deploy Automático Local
+name: Deploy Automático .NET Core
 
 on:
   push:
@@ -9,16 +9,20 @@ jobs:
     runs-on: self-hosted 
     
     steps:
-      - name: Atualizar código e reciclar App Pool
+      - name: Parar, Atualizar e Reiniciar via Agendador
         run: |
-          # 1. Entra na pasta do projeto
-          cd C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE
+          $taskName = "HSE-Cadastros-Service"
+          $projectPath = "C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE"
           
-          # 2. Puxa as alterações
+          Write-Host "1. Parando o sistema (liberando arquivos)..."
+          Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 3 # Aguarda o Windows encerrar o processo dotnet
+          
+          Write-Host "2. Atualizando o código..."
+          cd $projectPath
           git pull origin master
           
-          # 3. Recicla o App Pool específico da sua aplicação
-          # IMPORTANTE: Troque "NomeDoSeuAppPool" pelo nome real que você anotou!
-          C:\Windows\System32\inetsrv\appcmd recycle apppool /apppool.name:"DefaultAppPool"
+          Write-Host "3. Iniciando o sistema com o novo código..."
+          Start-ScheduledTask -TaskName $taskName
           
-          Write-Host "✅ Deploy realizado e App Pool reciclado com sucesso!"
+          Write-Host "✅ Deploy do .NET Core 8.0 realizado com sucesso!"
