@@ -9,28 +9,34 @@ jobs:
     runs-on: self-hosted 
     
     steps:
-      - name: Parar, Atualizar e Reiniciar o Sistema
+      - name: Parar, Atualizar e Compilar o Sistema
         run: |
           $projectPath = "C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE"
           
-          # TROQUE "HSE-Cadastros.dll" PELO NOME REAL DO SEU ARQUIVO DLL!
-          $dllName = "HSE-Cadastros.dll" 
-          $dllPath = Join-Path $projectPath "bin\Debug\net8.0\$dllName"
-          
           Write-Host "1. Parando APENAS o processo deste sistema..."
-          # Mata apenas o dotnet que está executando este .dll específico
-          Get-WmiObject Win32_Process -Filter "name = 'dotnet.exe'" | Where-Object { $_.CommandLine -like "*$dllName*" } | ForEach-Object { $_.Terminate() }
-          Start-Sleep -Seconds 3
+          
+          # AÇÃO 1: Mata o processo pelo nome exato que apareceu no erro do log
+          Stop-Process -Name "HSE-Cadastros" -Force -ErrorAction SilentlyContinue
+          
+          # AÇÃO 2: Como backup, mata qualquer dotnet.exe que tenha o nome da pasta no caminho
+          Get-WmiObject Win32_Process -Filter "name = 'dotnet.exe'" | Where-Object { $_.CommandLine -like "*CADASTRO-HSE*" } | ForEach-Object { $_.Terminate() }
+          
+          # AÇÃO 3: Aguarda 5 segundos (o Windows Server 2012 às vezes demora para liberar o lock do arquivo)
+          Write-Host "Aguardando liberação dos arquivos..."
+          Start-Sleep -Seconds 5
           
           Write-Host "2. Atualizando e compilando o código..."
           cd $projectPath
           git pull origin master
           
-          # Garante que o novo .dll foi gerado com as alterações
+          # Limpa o cache de build antigo para evitar conflitos
+          dotnet clean --no-restore
+          
+          # Compila o novo código
           dotnet build --no-restore
           
           Write-Host "3. Iniciando o sistema em segundo plano..."
-          # Usa 'exec' em vez de 'run'. É muito mais estável para janelas ocultas
-          Start-Process -FilePath "C:\Program Files\dotnet\dotnet.exe" -ArgumentList "exec `"$dllPath`"" -WorkingDirectory $projectPath -WindowStyle Hidden
+          # Inicia o executável compilado de forma oculta
+          Start-Process -FilePath "$projectPath\bin\Debug\net8.0\HSE-Cadastros.exe" -WindowStyle Hidden
           
           Write-Host "✅ Deploy do .NET Core 8.0 realizado com sucesso!"
