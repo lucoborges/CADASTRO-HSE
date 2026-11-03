@@ -13,19 +13,24 @@ jobs:
         run: |
           $projectPath = "C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE"
           
-          Write-Host "1. Procurando e parando o processo antigo..."
-          # Encontra o processo dotnet que tem o caminho do seu projeto na linha de comando e o encerra
-          Get-WmiObject Win32_Process -Filter "name = 'dotnet.exe'" | Where-Object { $_.CommandLine -like "*HSE-Cadastros*" -or $_.CommandLine -like "*$projectPath*" } | ForEach-Object { $_.Terminate() }
+          # TROQUE "HSE-Cadastros.dll" PELO NOME REAL DO SEU ARQUIVO DLL!
+          $dllName = "HSE-Cadastros.dll" 
+          $dllPath = Join-Path $projectPath "bin\Debug\net8.0\$dllName"
           
-          # Aguarda 3 segundos para o Windows liberar os arquivos
+          Write-Host "1. Parando APENAS o processo deste sistema..."
+          # Mata apenas o dotnet que está executando este .dll específico
+          Get-WmiObject Win32_Process -Filter "name = 'dotnet.exe'" | Where-Object { $_.CommandLine -like "*$dllName*" } | ForEach-Object { $_.Terminate() }
           Start-Sleep -Seconds 3
           
-          Write-Host "2. Atualizando o código..."
+          Write-Host "2. Atualizando e compilando o código..."
           cd $projectPath
           git pull origin master
           
-          Write-Host "3. Iniciando o sistema com o novo código..."
-          # Inicia o dotnet run na pasta correta, em segundo plano (Hidden)
-          Start-Process -FilePath "C:\Program Files\dotnet\dotnet.exe" -ArgumentList "run" -WorkingDirectory $projectPath -WindowStyle Hidden
+          # Garante que o novo .dll foi gerado com as alterações
+          dotnet build --no-restore
+          
+          Write-Host "3. Iniciando o sistema em segundo plano..."
+          # Usa 'exec' em vez de 'run'. É muito mais estável para janelas ocultas
+          Start-Process -FilePath "C:\Program Files\dotnet\dotnet.exe" -ArgumentList "exec `"$dllPath`"" -WorkingDirectory $projectPath -WindowStyle Hidden
           
           Write-Host "✅ Deploy do .NET Core 8.0 realizado com sucesso!"
