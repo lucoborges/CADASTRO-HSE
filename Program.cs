@@ -93,6 +93,7 @@ namespace HSE.Automation
 
             try
             {
+                Console.WriteLine("Iniciando serviços triplos (Produtos, Fornecedores, Clientes)...");
                 Console.WriteLine("Chamando IniciarServicosTriplos...");
                 await IniciarServicosTriplos(groqTestResult, groqClient);
 
