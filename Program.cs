@@ -58,6 +58,12 @@ namespace HSE.Automation
                 // Carrega configurações
                 var configuration = builder.Configuration;
 
+                LoginService.Configurar(configuration);
+                if (!LoginService.CredenciaisConfiguradas)
+                {
+                    Console.WriteLine("⚠️ Hse:Usuario / Hse:Senha não configurados — os cadastros vão falhar no login.");
+                }
+
                 // Inicia todos os serviços simultaneamente
                 var groqClient = new GroqClient(configuration["GroqApi:ApiKey"], configuration.GetSection("GroqApi")["BaseUrl"]);
                 Console.WriteLine("\nTestando conexão com Groq...");

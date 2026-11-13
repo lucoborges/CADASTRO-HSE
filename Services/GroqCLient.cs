@@ -29,7 +29,7 @@ public class GroqClient
         {
             var request = new
             {
-                model = "llama-3.1-8b-instant",
+                model = "openai/gpt-oss-120b",
                 messages = new[]
                 {
                     new { role = "user", content = "Teste de conexão" }
@@ -87,7 +87,7 @@ Sua resposta (APENAS O NÚMERO DO ID):";
                 new { role = "user", content = prompt }
             },
                 temperature = 0.1,
-                max_tokens = 10
+                max_tokens = 2000
             };
 
             var json = JsonConvert.SerializeObject(requestObj);

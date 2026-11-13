@@ -1,4 +1,5 @@
 ﻿using HSE.Automation.Utils;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Playwright;
 using System;
 using System.Threading.Tasks;
@@ -7,10 +8,30 @@ namespace HSE.Automation.Services
 {
     public static class LoginService
     {
+        // Credenciais do HSE vêm da configuração (Hse:Usuario / Hse:Senha), nunca do código.
+        // Em produção: appsettings.Production.json (fora do Git) ou variáveis Hse__Usuario / Hse__Senha.
+        private static string _usuario;
+        private static string _senha;
+
+        public static bool CredenciaisConfiguradas =>
+            !string.IsNullOrWhiteSpace(_usuario) && !string.IsNullOrWhiteSpace(_senha);
+
+        public static void Configurar(IConfiguration configuration)
+        {
+            _usuario = configuration["Hse:Usuario"];
+            _senha = configuration["Hse:Senha"];
+        }
+
         public static async Task<bool> RealizarLogin(IPage pagina)
         {
             try
             {
+                if (!CredenciaisConfiguradas)
+                {
+                    Console.WriteLine("❌ Login do HSE não configurado: defina Hse:Usuario e Hse:Senha (appsettings.Production.json ou variáveis de ambiente).");
+                    return false;
+                }
+
                 Console.WriteLine("🔐 Realizando login...");
 
                 // Navega para página de login
@@ -19,8 +40,8 @@ namespace HSE.Automation.Services
                 await pagina.WaitForTimeoutAsync(2000);
 
                 // Preenche credenciais
-                await pagina.FillAsync("#usuario", "vendas8@venturainformatica.com.br");
-                await pagina.FillAsync("#senha", "123456");
+                await pagina.FillAsync("#usuario", _usuario);
+                await pagina.FillAsync("#senha", _senha);
 
                 // Clica no primeiro botão de login (validarLogin)
                 Console.WriteLine("1️⃣ Clicando no primeiro botão 'Entrar'...");

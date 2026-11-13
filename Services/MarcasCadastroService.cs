@@ -10,7 +10,7 @@ namespace HSE.Automation.Services
 {
     public class MarcasCadastroService
     {
-        private const string JsonPath = @"C:\Users\meyri\Downloads\MarcasCadastradas.json";
+        private const string JsonPath = @"\\SERVIDOR2\Publico\ALLAN\database\MarcasCadastradas.json";
         private MarcasData _dados;
 
         public MarcasCadastroService()
