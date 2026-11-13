@@ -1,58 +1,31 @@
-name: Deploy Automático .NET Core
+name: Deploy
 
 on:
   push:
     branches: [master]
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
-    runs-on: self-hosted 
-    
+    runs-on: self-hosted
+    concurrency: deploy-producao
     steps:
-      - name: Parar, Atualizar e Reiniciar o Sistema
+      # O servidor é Windows Server 2012 R2: as ações do GitHub baseadas em Node.js (como
+      # actions/checkout) não rodam nele, então o código é baixado com git direto.
+      # Publicar, parar, trocar, verificar e desfazer ficam em deploy/deploy.ps1.
+      - name: Baixar o código, publicar, trocar e verificar
+        shell: powershell
         run: |
-          $projectPath = "C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE"
-          
-          Write-Host "1. Parando a tarefa agendada (e o processo)..."
-          Stop-ScheduledTask -TaskName "HSE-Cadastros-Service" -ErrorAction SilentlyContinue
-          
-          # Aguarda o Windows encerrar o processo completamente
-          Write-Host "Aguardando liberação dos arquivos..."
-          Start-Sleep -Seconds 5
-          
-          # Verifica se ainda tem processo rodando e mata se necessário
-          Stop-Process -Name "HSE-Cadastros" -Force -ErrorAction SilentlyContinue
-          Start-Sleep -Seconds 2
-          
-          Write-Host "2. Atualizando e compilando o código..."
-          cd $projectPath
-          git pull origin master
-          dotnet build
-          
-          Write-Host "3. Iniciando o sistema via tarefa agendada..."
-          Start-ScheduledTask -TaskName "HSE-Cadastros-Service"
-          
-          Write-Host "Aguardando 5 segundos para o sistema subir..."
-          Start-Sleep -Seconds 5
-          
-          # Verificação final
-          $proc = Get-Process -Name "HSE-Cadastros" -ErrorAction SilentlyContinue
-          if ($proc) {
-              Write-Host "✅ SUCESSO ABSOLUTO: O sistema está rodando com PID $($proc.Id)!" -ForegroundColor Green
-              
-              # Testa se os servidores HTTP estão respondendo
-              try {
-                  $health1 = Invoke-WebRequest -Uri "http://localhost:6001/health" -UseBasicParsing -TimeoutSec 3
-                  $health2 = Invoke-WebRequest -Uri "http://localhost:6002/health" -UseBasicParsing -TimeoutSec 3
-                  $health3 = Invoke-WebRequest -Uri "http://localhost:6003/health" -UseBasicParsing -TimeoutSec 3
-                  
-                  if ($health1.StatusCode -eq 200 -and $health2.StatusCode -eq 200 -and $health3.StatusCode -eq 200) {
-                      Write-Host "✅ Todos os 3 servidores HTTP estão respondendo!" -ForegroundColor Green
-                  }
-              } catch {
-                  Write-Host "⚠️ Aviso: Nem todos os servidores HTTP estão respondendo ainda (podem estar inicializando)" -ForegroundColor Yellow
-              }
-          } else {
-              Write-Host "❌ ERRO: O processo não está rodando. Verifique os logs em: $projectPath\logs-local\" -ForegroundColor Red
-              exit 1
-          }
+          $codigo = Join-Path $env:RUNNER_TEMP 'codigo'
+          if (Test-Path $codigo) { Remove-Item $codigo -Recurse -Force }
+          git init -q $codigo
+          git -C $codigo fetch -q --depth 1 "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ${{ github.sha }}
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar o codigo. O programa nao foi alterado.' }
+          git -C $codigo checkout -q FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Falha no checkout. O programa nao foi alterado.' }
+
+          $versao = "${{ github.sha }}".Substring(0, 7)
+          & (Join-Path $codigo 'deploy\deploy.ps1') -Versao $versao
+          exit $LASTEXITCODE
