@@ -35,7 +35,7 @@ namespace HSE.Automation.Services
                 Console.WriteLine("🔐 Realizando login...");
 
                 // Navega para página de login
-                await pagina.GotoAsync("https://app.hsesistemas.com.br/");
+                await pagina.GotoAsync(AppConfig.HseUrl());
                 await pagina.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 await pagina.WaitForTimeoutAsync(2000);
 
@@ -57,7 +57,7 @@ namespace HSE.Automation.Services
 
                     // Seleciona a empresa "VENTURA MATRIZ" (valor 505)
                     // Se quiser selecionar outra, altere o valor para 506 ou 507
-                    await pagina.SelectOptionAsync("#filial", new SelectOptionValue { Value = "505" });
+                    await pagina.SelectOptionAsync("#filial", new SelectOptionValue { Value = AppConfig.HseFilial });
 
                     await pagina.WaitForTimeoutAsync(1000);
 

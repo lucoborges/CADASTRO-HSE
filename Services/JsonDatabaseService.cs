@@ -113,7 +113,7 @@ namespace HSE.Automation.Services
             if (!string.IsNullOrWhiteSpace(caminho))
                 return caminho.Trim();
 
-            return CaminhoBancoCompartilhado;
+            return HSE.Automation.Utils.AppConfig.BancoProdutos;
         }
 
         private static bool FormatoPadraoDoArquivo(string caminho)

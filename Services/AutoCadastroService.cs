@@ -204,7 +204,7 @@ namespace HSE.Automation.Services
 
                 // Login
                 await LoginService.RealizarLogin(paginaPrincipal);
-                await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/produto.php");
+                await paginaPrincipal.GotoAsync(AppConfig.HseUrl("produto.php"));
 
                 // Variáveis LOCAIS para esta requisição
                 Dictionary<string, string> gruposDisponiveis = null;
@@ -2142,7 +2142,7 @@ namespace HSE.Automation.Services
 
                 // 7. Navega para página de marcas
                 Console.WriteLine("\n📍 NAVEGANDO PARA PÁGINA DE MARCAS...");
-                await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/marca.php");
+                await paginaPrincipal.GotoAsync(AppConfig.HseUrl("marca.php"));
                 await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 await Task.Delay(5000);
 
@@ -2483,7 +2483,7 @@ namespace HSE.Automation.Services
 
                     // Vai para página de produtos
                     Console.WriteLine("📍 Indo para página de produtos...");
-                    await _paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/produto.php");
+                    await _paginaPrincipal.GotoAsync(AppConfig.HseUrl("produto.php"));
                     await _paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(3000);
 
@@ -2606,7 +2606,7 @@ namespace HSE.Automation.Services
 
                     // Vai para página de produtos
                     Console.WriteLine("📍 Indo para página de produtos após login...");
-                    await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/produto.php");
+                    await paginaPrincipal.GotoAsync(AppConfig.HseUrl("produto.php"));
                     await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(3000);
                 }
@@ -2618,7 +2618,7 @@ namespace HSE.Automation.Services
                 {
                     // Se não reconhecer a página, tenta ir para produtos
                     Console.WriteLine("⚠️ Não reconhece a página, tentando ir para produtos...");
-                    await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/produto.php");
+                    await paginaPrincipal.GotoAsync(AppConfig.HseUrl("produto.php"));
                     await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                     await Task.Delay(3000);
                 }

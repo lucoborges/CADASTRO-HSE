@@ -7,14 +7,16 @@ rem Navegadores do Playwright ja instalados no perfil do Administrator
 set PLAYWRIGHT_BROWSERS_PATH=C:\Users\Administrator\AppData\Local\ms-playwright
 
 set RAIZ=%~dp0
-rem Data pelo wmic (nao depende do idioma do Windows nem do PowerShell)
-set AGORA=
-for /f "skip=1" %%i in ('wmic os get LocalDateTime') do if not defined AGORA set AGORA=%%i
-set LOG=%RAIZ%logs\hse-cadastros-%AGORA:~0,8%.log
+rem O programa grava o proprio log, um arquivo por dia, nesta pasta (fora de app\, que e trocada a cada deploy)
+set Logs__Pasta=%RAIZ%logs
+rem Sem console em producao: o log em arquivo ja tem tudo
+set Logs__Console=false
 
 cd /d "%RAIZ%app"
-echo ==== Iniciando %DATE% %TIME% ====>> "%LOG%"
-HSE-Cadastros.exe >> "%LOG%" 2>&1
+rem console.log guarda so o que sai antes do log em arquivo abrir e as quedas do programa
+rem (excecao nao tratada). E sobrescrito a cada inicio.
+echo ==== Inicio %DATE% %TIME% ====> "%RAIZ%logs\console.log"
+HSE-Cadastros.exe >> "%RAIZ%logs\console.log" 2>&1
 set CODIGO=%ERRORLEVEL%
-echo ==== Finalizado %DATE% %TIME% codigo %CODIGO% ====>> "%LOG%"
+echo ==== Fim %DATE% %TIME% codigo %CODIGO% ====>> "%RAIZ%logs\console.log"
 exit /b %CODIGO%

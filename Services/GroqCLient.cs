@@ -29,7 +29,7 @@ public class GroqClient
         {
             var request = new
             {
-                model = "openai/gpt-oss-120b",
+                model = HSE.Automation.Utils.AppConfig.GroqModelo,
                 messages = new[]
                 {
                     new { role = "user", content = "Teste de conexão" }
@@ -80,7 +80,7 @@ Sua resposta (APENAS O NÚMERO DO ID):";
 
             var requestObj = new
             {
-                model = "openai/gpt-oss-120b",
+                model = HSE.Automation.Utils.AppConfig.GroqModelo,
                 messages = new[]
                 {
                 new { role = "system", content = "Você é um especialista em classificação de produtos industriais. Responda apenas com números, sem texto." },

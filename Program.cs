@@ -36,9 +36,6 @@ namespace HSE.Automation
             Console.WriteLine("╚══════════════════════════════════════════════════════════════════════════════╝");
 
             Console.WriteLine("\n🎯 INICIANDO SISTEMA COMPLETO...");
-            Console.WriteLine("   • Produtos: porta 6001");
-            Console.WriteLine("   • Fornecedores: porta 6002");
-            Console.WriteLine("   • Clientes: porta 6003");
             Console.WriteLine("   • Pressione Ctrl+C para encerrar\n");
 
             // Configura tratamento de Ctrl+C
@@ -51,12 +48,22 @@ namespace HSE.Automation
             };
 
 
+            LogArquivo logArquivo = null;
             try
             {
                 var builder = WebApplication.CreateBuilder(args);
 
-                // Carrega configurações
+                // Carrega configurações (appsettings.json, appsettings.Production.json, variáveis de ambiente)
                 var configuration = builder.Configuration;
+                AppConfig.Carregar(configuration);
+
+                // A partir daqui tudo que vai para o console também vai para o arquivo de log do dia
+                logArquivo = LogArquivo.Iniciar(AppConfig.LogsPasta, AppConfig.LogsDiasRetencao, AppConfig.LogsNoConsole);
+                Console.WriteLine($"==== Iniciando versao {AppConfig.Versao} ====");
+                Console.WriteLine($"   • Produtos: {AppConfig.UrlProdutos}");
+                Console.WriteLine($"   • Fornecedores: {AppConfig.UrlFornecedores}");
+                Console.WriteLine($"   • Clientes: {AppConfig.UrlClientes}");
+                Console.WriteLine($"   • HSE: {AppConfig.HseUrlBase} (filial {AppConfig.HseFilial})");
 
                 LoginService.Configurar(configuration);
                 if (!LoginService.CredenciaisConfiguradas)
@@ -86,13 +93,13 @@ namespace HSE.Automation
             finally
             {
                 Console.WriteLine("\n👋 Sistema encerrado...");
+                Console.WriteLine("==== Finalizado ====");
+                logArquivo?.Dispose();
             }
         }
         static async Task Log(bool groqTestResult, GroqClient groqClient)
         {
             
-            using var logger = new ConsoleFileLogger(@"\\SERVIDOR2\Publico\ALLAN\Logs");
-
             Console.WriteLine("=== INICIANDO APLICAÇÃO ===");
             Console.WriteLine($"Data: {DateTime.Now:F}");
             Console.WriteLine();
@@ -126,7 +133,7 @@ namespace HSE.Automation
             var tasks = new List<Task>();
 
             // Tarefa 1: Servidor de Produtos (porta 6001)
-            Console.WriteLine("\n🚀 INICIANDO SERVIDOR DE PRODUTOS (porta 6001)...");
+            Console.WriteLine("\n🚀 INICIANDO SERVIDOR DE PRODUTOS...");
             _taskProdutos = Task.Run(() => IniciarServidorProdutos(_cancellationTokenSource.Token, groqTestResult, groqClient));
             tasks.Add(_taskProdutos);
 
@@ -134,7 +141,7 @@ namespace HSE.Automation
             await Task.Delay(1000);
 
             // Tarefa 2: Servidor de Fornecedores (porta 6002)
-            Console.WriteLine("\n🚀 INICIANDO SERVIDOR DE FORNECEDORES (porta 6002)...");
+            Console.WriteLine("\n🚀 INICIANDO SERVIDOR DE FORNECEDORES...");
             _taskFornecedores = Task.Run(() => IniciarServidorFornecedores(_cancellationTokenSource.Token));
             tasks.Add(_taskFornecedores);
 
@@ -142,7 +149,7 @@ namespace HSE.Automation
             await Task.Delay(1000);
 
             // ✅ Tarefa 3: Servidor de Clientes (porta 6003) - NOVO
-            Console.WriteLine("\n🚀 INICIANDO SERVIDOR DE CLIENTES (porta 6003)...");
+            Console.WriteLine("\n🚀 INICIANDO SERVIDOR DE CLIENTES...");
             _taskClientes = Task.Run(() => IniciarServidorClientes(_cancellationTokenSource.Token));
             tasks.Add(_taskClientes);
 
@@ -176,18 +183,21 @@ namespace HSE.Automation
                 // Middleware de log específico para produtos
                 app.Use(async (context, next) =>
                 {
-                    Console.WriteLine($"[PRODUTOS {DateTime.Now:HH:mm:ss}] {context.Request.Method} {context.Request.Path}");
+                    // /health é consultado o tempo todo: não vai para o log
+                    if (!context.Request.Path.StartsWithSegments("/health"))
+                        Console.WriteLine($"[PRODUTOS {DateTime.Now:HH:mm:ss}] {context.Request.Method} {context.Request.Path}");
                     await next();
                 });
 
                 // Endpoints de produtos
                 app.MapGet("/health", () =>
                 {
-                    Console.WriteLine("[PRODUTOS] Health check");
                     return Results.Ok(new
                     {
                         status = "Serviço de Produtos funcionando",
-                        porta = 6001,
+                        porta = AppConfig.Porta(AppConfig.UrlProdutos),
+                        versao = AppConfig.Versao,
+                        iniciadoEm = AppConfig.IniciadoEm,
                         timestamp = DateTime.UtcNow
                     });
                 });
@@ -279,13 +289,13 @@ namespace HSE.Automation
                     }
                 });
 
-                Console.WriteLine("🚀 [PRODUTOS] Servidor iniciado na porta 6001");
+                Console.WriteLine($"🚀 [PRODUTOS] Servidor iniciado na porta {AppConfig.Porta(AppConfig.UrlProdutos)}");
 
                 // Configura para encerrar quando o token for cancelado
                 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
                 cancellationToken.Register(() => lifetime.StopApplication());
 
-                var urlProdutos = "http://localhost:6001";
+                var urlProdutos = AppConfig.UrlProdutos;
                 Console.WriteLine($"🚀 [PRODUTOS] Tentando iniciar em: {urlProdutos}");
                 var runTask = app.RunAsync(urlProdutos);
 
@@ -338,18 +348,21 @@ namespace HSE.Automation
                 // Middleware de log específico para fornecedores
                 app.Use(async (context, next) =>
                 {
-                    Console.WriteLine($"[FORNECEDORES {DateTime.Now:HH:mm:ss}] {context.Request.Method} {context.Request.Path}");
+                    // /health é consultado o tempo todo: não vai para o log
+                    if (!context.Request.Path.StartsWithSegments("/health"))
+                        Console.WriteLine($"[FORNECEDORES {DateTime.Now:HH:mm:ss}] {context.Request.Method} {context.Request.Path}");
                     await next();
                 });
 
                 // Endpoints de fornecedores
                 app.MapGet("/health", () =>
                 {
-                    Console.WriteLine("[FORNECEDORES] Health check");
                     return Results.Ok(new
                     {
                         status = "Serviço de Fornecedores funcionando",
-                        porta = 6002,
+                        porta = AppConfig.Porta(AppConfig.UrlFornecedores),
+                        versao = AppConfig.Versao,
+                        iniciadoEm = AppConfig.IniciadoEm,
                         timestamp = DateTime.UtcNow
                     });
                 });
@@ -496,13 +509,13 @@ namespace HSE.Automation
                     }
                 });
 
-                Console.WriteLine("🚀 [FORNECEDORES] Servidor iniciado na porta 6002");
+                Console.WriteLine($"🚀 [FORNECEDORES] Servidor iniciado na porta {AppConfig.Porta(AppConfig.UrlFornecedores)}");
 
                 // Configura para encerrar quando o token for cancelado
                 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
                 cancellationToken.Register(() => lifetime.StopApplication());
 
-                var urlFornecedores = "http://localhost:6002";
+                var urlFornecedores = AppConfig.UrlFornecedores;
                 Console.WriteLine($"🚀 [FORNECEDORES] Tentando iniciar em: {urlFornecedores}");
                 var runTask = app.RunAsync(urlFornecedores);
 
@@ -550,18 +563,21 @@ namespace HSE.Automation
                 // Middleware de log específico para clientes
                 app.Use(async (context, next) =>
                 {
-                    Console.WriteLine($"[CLIENTES {DateTime.Now:HH:mm:ss}] {context.Request.Method} {context.Request.Path}");
+                    // /health é consultado o tempo todo: não vai para o log
+                    if (!context.Request.Path.StartsWithSegments("/health"))
+                        Console.WriteLine($"[CLIENTES {DateTime.Now:HH:mm:ss}] {context.Request.Method} {context.Request.Path}");
                     await next();
                 });
 
                 // Endpoints de clientes
                 app.MapGet("/health", () =>
                 {
-                    Console.WriteLine("[CLIENTES] Health check");
                     return Results.Ok(new
                     {
                         status = "Serviço de Clientes funcionando",
-                        porta = 6003,
+                        porta = AppConfig.Porta(AppConfig.UrlClientes),
+                        versao = AppConfig.Versao,
+                        iniciadoEm = AppConfig.IniciadoEm,
                         timestamp = DateTime.UtcNow
                     });
                 });
@@ -732,13 +748,13 @@ namespace HSE.Automation
                     }
                 });
 
-                Console.WriteLine("🚀 [CLIENTES] Servidor iniciado na porta 6003");
+                Console.WriteLine($"🚀 [CLIENTES] Servidor iniciado na porta {AppConfig.Porta(AppConfig.UrlClientes)}");
 
                 // Configura para encerrar quando o token for cancelado
                 var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
                 cancellationToken.Register(() => lifetime.StopApplication());
 
-                var urlClientes = "http://localhost:6003";
+                var urlClientes = AppConfig.UrlClientes;
                 Console.WriteLine($"🚀 [CLIENTES] Tentando iniciar em: {urlClientes}");
                 var runTask = app.RunAsync(urlClientes);
 
@@ -839,94 +855,6 @@ namespace HSE.Automation
         }
 
     }
-    public class ConsoleFileLogger : IDisposable
-    {
-        private readonly string _logDirectory;
-        private readonly StreamWriter _fileWriter;
-        private readonly TextWriter _originalOutput;
-        private readonly TextWriter _originalError;
-        private readonly MultiTextWriter _multiOutput;
-        private readonly MultiTextWriter _multiError;
-
-        public ConsoleFileLogger(string logDirectory)
-        {
-            _logDirectory = logDirectory;
-            Directory.CreateDirectory(logDirectory);
-
-            // Salva os escritores originais
-            _originalOutput = Console.Out;
-            _originalError = Console.Error;
-
-            // Cria o arquivo de log com data no nome
-            var logFile = Path.Combine(logDirectory, $"console-log.txt");
-
-            // StreamWriter com AutoFlush = true para escrever IMEDIATAMENTE
-            _fileWriter = new StreamWriter(logFile, append: true)
-            {
-                AutoFlush = true  // <--- ESSENCIAL para escrever continuamente
-            };
-
-            // Escreve cabeçalho no início do log
-            _fileWriter.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] === SESSÃO INICIADA ===");
-
-            // Cria escritores que escrevem tanto no console quanto no arquivo
-            _multiOutput = new MultiTextWriter(_originalOutput, _fileWriter);
-            _multiError = new MultiTextWriter(_originalError, _fileWriter);
-
-            // Redireciona o console
-            Console.SetOut(_multiOutput);
-            Console.SetError(_multiError);
-        }
-
-        public void Dispose()
-        {
-            // Escreve rodapé no final do log
-            _fileWriter.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] === SESSÃO FINALIZADA ===");
-            _fileWriter.WriteLine();
-
-            // Restaura o console original
-            Console.SetOut(_originalOutput);
-            Console.SetError(_originalError);
-            _fileWriter?.Dispose();
-        }
-    }
-
-    public class MultiTextWriter : TextWriter
-    {
-        private readonly TextWriter[] _writers;
-
-        public MultiTextWriter(params TextWriter[] writers)
-        {
-            _writers = writers;
-        }
-
-        public override void Write(char value)
-        {
-            foreach (var writer in _writers)
-            {
-                writer.Write(value);
-            }
-        }
-
-        public override void Write(string value)
-        {
-            foreach (var writer in _writers)
-            {
-                writer.Write(value);
-            }
-        }
-
-        public override void WriteLine(string value)
-        {
-            foreach (var writer in _writers)
-            {
-                writer.WriteLine(value);
-            }
-        }
-
-        public override Encoding Encoding => Encoding.UTF8;
-    }
-
     public class GatewayFornecedorRequest
     {
         public string CodigoTarefa { get; set; } = string.Empty;

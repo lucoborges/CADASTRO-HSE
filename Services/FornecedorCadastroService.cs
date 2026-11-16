@@ -87,7 +87,7 @@ namespace HSE.Automation.Services
 
                 // 3. Navega para página de fornecedores
                 Console.WriteLine("\n📍 NAVEGANDO PARA PÁGINA DE FORNECEDORES...");
-                await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/fornecedor.php");
+                await paginaPrincipal.GotoAsync(AppConfig.HseUrl("fornecedor.php"));
                 await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 await Task.Delay(5000);
 
@@ -265,7 +265,7 @@ namespace HSE.Automation.Services
                         if (!paginaPrincipal.Url.Contains("fornecedor.php"))
                         {
                             Console.WriteLine("📍 NAVEGANDO PARA PÁGINA DE FORNECEDORES...");
-                            await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/fornecedor.php");
+                            await paginaPrincipal.GotoAsync(AppConfig.HseUrl("fornecedor.php"));
                             await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                             await Task.Delay(3000);
                         }
@@ -509,7 +509,7 @@ namespace HSE.Automation.Services
 
                 // 3. Navega para página de fornecedores
                 Console.WriteLine("\n📍 NAVEGANDO PARA PÁGINA DE FORNECEDORES...");
-                await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/fornecedor.php");
+                await paginaPrincipal.GotoAsync(AppConfig.HseUrl("fornecedor.php"));
                 await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 await Task.Delay(5000);
 
@@ -687,7 +687,7 @@ namespace HSE.Automation.Services
                         if (!paginaPrincipal.Url.Contains("fornecedor.php"))
                         {
                             Console.WriteLine("📍 NAVEGANDO PARA PÁGINA DE FORNECEDORES...");
-                            await paginaPrincipal.GotoAsync("https://app.hsesistemas.com.br/fornecedor.php");
+                            await paginaPrincipal.GotoAsync(AppConfig.HseUrl("fornecedor.php"));
                             await paginaPrincipal.WaitForLoadStateAsync(LoadState.NetworkIdle);
                             await Task.Delay(3000);
                         }

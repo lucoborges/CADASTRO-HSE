@@ -10,7 +10,7 @@
 #   app-anterior\  versao anterior (usada para desfazer)
 #   app-novo\      area de publicacao
 #   config\        appsettings.Production.json (segredos; fora do Git; nunca apagado)
-#   logs\          saida do programa, um arquivo por dia de inicializacao
+#   logs\          log do programa, um arquivo por dia, 30 dias (console.log = saida bruta do ultimo inicio)
 #   backup\        copia da pasta antiga, feita na primeira migracao
 #   iniciar.cmd    o que a tarefa agendada executa
 #
@@ -64,24 +64,33 @@ function Linhas-DesdeInicio {
     if (-not $arquivo) { return @() }
     $linhas = @(Get-Content $arquivo.FullName -Encoding UTF8 -Tail 500)
     $inicio = 0
-    for ($i = $linhas.Count - 1; $i -ge 0; $i--) { if ($linhas[$i] -like '==== Iniciando*') { $inicio = $i; break } }
+    for ($i = $linhas.Count - 1; $i -ge 0; $i--) { if ($linhas[$i] -like '*==== Iniciando*') { $inicio = $i; break } }
     return $linhas[$inicio..($linhas.Count - 1)]
 }
 
-function Testar-Saude {
+function Testar-Saude([string]$VersaoEsperada, [switch]$SoPortas) {
     # Ate 2 minutos: o programa testa a Groq e carrega o banco de produtos antes de abrir as portas
     $ok = $false
     for ($i = 1; $i -le 40 -and -not $ok; $i++) {
         Start-Sleep -Seconds 3
         $ok = $true
+        $resposta = ''
         foreach ($porta in $Portas) {
             try {
                 $r = Invoke-WebRequest -Uri "http://localhost:$porta/health" -UseBasicParsing -TimeoutSec 5
-                if ($r.StatusCode -ne 200) { $ok = $false }
+                if ($r.StatusCode -ne 200) { $ok = $false } else { $resposta = [string]$r.Content }
             } catch { $ok = $false }
         }
     }
     if (-not $ok) { Write-Host '   As portas nao responderam em /health.'; return $false }
+    # Na volta para a versao anterior so as portas contam (ela pode ser de antes do /health com versao)
+    if ($SoPortas) { return $true }
+
+    # Quem respondeu tem que ser a versao que acabou de ser publicada, nao um processo antigo que sobrou
+    if ($VersaoEsperada -and $resposta -notmatch ('"versao":"' + [regex]::Escape($VersaoEsperada) + '"')) {
+        Write-Host "   /health respondeu, mas nao e a versao $VersaoEsperada."
+        return $false
+    }
 
     # Portas no ar nao bastam: o programa sobe mesmo sem enxergar o banco de produtos ou o login
     $problemas = @(Linhas-DesdeInicio | Where-Object {
@@ -186,7 +195,7 @@ try {
 
     Write-Host '4. Iniciando e conferindo a saude...'
     Start-ScheduledTask -TaskName $NomeTarefa
-    $subiu = Testar-Saude
+    $subiu = Testar-Saude -VersaoEsperada $Versao
     if ($SimularFalha) {
         Write-Host "   TESTE: falha simulada (a versao nova respondeu: $subiu). Seguindo para a volta automatica." -ForegroundColor Yellow
         $subiu = $false
@@ -212,7 +221,7 @@ if (-not $primeiraMigracao) {
         Rename-Item $anterior $app
     }
     Start-ScheduledTask -TaskName $NomeTarefa
-    if (Testar-Saude) { Write-Host 'Versao anterior restaurada e respondendo.' }
+    if (Testar-Saude -SoPortas) { Write-Host 'Versao anterior restaurada e respondendo.' }
     else { Write-Host 'ATENCAO: a versao anterior tambem nao respondeu. O programa esta fora do ar.' -ForegroundColor Red }
 }
 else {

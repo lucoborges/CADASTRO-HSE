@@ -9,7 +9,7 @@ namespace HSE.Automation.Services
 {
     public class PlanilhaMarcasService
     {
-        private const string ExcelPath = @"C:\Users\meyri\Downloads\PLANILHA DE MARCAS.xlsx";
+        private static string ExcelPath => HSE.Automation.Utils.AppConfig.PlanilhaMarcas;
 
         public List<string> LerMarcasDaPlanilha()
         {
