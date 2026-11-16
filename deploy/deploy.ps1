@@ -131,51 +131,83 @@ foreach ($obrigatorio in @('appsettings.json', 'Data\grupos-mapping.json', '.pla
 Copy-Item $config (Join-Path $novo 'appsettings.Production.json')
 Set-Content -Path (Join-Path $novo 'versao.txt') -Value $Versao -Encoding ascii
 
-if ($primeiraMigracao -and (Test-Path $PastaLegada)) {
+$jaTemBackup = @(Get-ChildItem (Join-Path $Raiz 'backup') -ErrorAction SilentlyContinue).Count -gt 0
+if ($primeiraMigracao -and -not $jaTemBackup -and (Test-Path $PastaLegada)) {
     $destinoBackup = Join-Path $Raiz ('backup\CADASTRO-HSE-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
     Write-Host "   Primeira migracao: copiando a pasta antiga para $destinoBackup ..."
     & robocopy $PastaLegada $destinoBackup /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { throw 'O backup da pasta antiga falhou. O programa em execucao nao foi alterado.' }
 }
 
-Write-Host '2. Parando o programa...'
 $tarefaLegada = Get-ScheduledTask -TaskName $TarefaLegada -ErrorAction SilentlyContinue
 $legadaEstavaAtiva = $tarefaLegada -and $tarefaLegada.State -ne 'Disabled'
-Parar-Programa
-if ($legadaEstavaAtiva) {
-    Disable-ScheduledTask -TaskName $TarefaLegada | Out-Null
-    Write-Host "   Tarefa antiga '$TarefaLegada' desativada (fica como reserva)."
-}
 
-Write-Host '3. Trocando as pastas...'
-if (Test-Path $anterior) { Remove-Item $anterior -Recurse -Force }
-if (-not $primeiraMigracao) { Rename-Item $app $anterior }
-Rename-Item $novo $app
+# Cria a tarefa nova com o programa ainda no ar: registrar nao inicia nada, e se o
+# registro falhar o deploy para aqui, sem ter derrubado o programa.
 Copy-Item (Join-Path $PSScriptRoot 'iniciar.cmd') $iniciar -Force
 Garantir-Tarefa
 
-Write-Host '4. Iniciando e conferindo a saude...'
-Start-ScheduledTask -TaskName $NomeTarefa
-if (Testar-Saude) {
+# A partir daqui o programa sai do ar. Qualquer erro (nao so saude ruim) cai no bloco
+# de desfazer, para o programa nunca ficar parado por causa de uma falha do script.
+$subiu = $false
+try {
+    Write-Host '2. Parando o programa...'
+    Parar-Programa
+    if ($legadaEstavaAtiva) {
+        # schtasks em vez de Disable-ScheduledTask: no Server 2012 R2 o cmdlet falha
+        # com 0x8007007b nesta tarefa
+        & schtasks.exe /Change /TN $TarefaLegada /DISABLE | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Nao consegui desativar a tarefa antiga '$TarefaLegada'." }
+        Write-Host "   Tarefa antiga '$TarefaLegada' desativada (fica como reserva)."
+    }
+
+    Write-Host '3. Trocando as pastas...'
+    if (Test-Path $anterior) { Remove-Item $anterior -Recurse -Force }
+    if (-not $primeiraMigracao) { Rename-Item $app $anterior }
+    Rename-Item $novo $app
+
+    Write-Host '4. Iniciando e conferindo a saude...'
+    Start-ScheduledTask -TaskName $NomeTarefa
+    $subiu = Testar-Saude
+}
+catch {
+    Write-Host "   Falha durante a troca: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+if ($subiu) {
     Write-Host "SUCESSO: versao $Versao no ar em $app." -ForegroundColor Green
     exit 0
 }
 
 Write-Host 'ERRO: a versao nova nao subiu corretamente. Desfazendo...' -ForegroundColor Red
+$ErrorActionPreference = 'Continue'
 Parar-Programa
-if (Test-Path $app) { Rename-Item $app (Join-Path $Raiz ('app-falhou-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))) }
 
 if (-not $primeiraMigracao) {
-    Rename-Item $anterior $app
+    # Se a troca de pastas chegou a acontecer, guarda a versao que falhou e traz a anterior de volta
+    if (Test-Path $anterior) {
+        if (Test-Path $app) { Rename-Item $app (Join-Path $Raiz ('app-falhou-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))) }
+        Rename-Item $anterior $app
+    }
     Start-ScheduledTask -TaskName $NomeTarefa
     if (Testar-Saude) { Write-Host 'Versao anterior restaurada e respondendo.' }
     else { Write-Host 'ATENCAO: a versao anterior tambem nao respondeu. O programa esta fora do ar.' -ForegroundColor Red }
 }
-elseif ($legadaEstavaAtiva) {
+else {
     # Primeira migracao: volta para a instalacao antiga (precisa da sessao do Administrator aberta)
-    Unregister-ScheduledTask -TaskName $NomeTarefa -Confirm:$false -ErrorAction SilentlyContinue
-    Enable-ScheduledTask -TaskName $TarefaLegada | Out-Null
-    Start-ScheduledTask -TaskName $TarefaLegada
-    Write-Host "Tarefa antiga '$TarefaLegada' reativada e iniciada."
+    if (Test-Path $app) { Rename-Item $app (Join-Path $Raiz ('app-falhou-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))) }
+    if (Get-ScheduledTask -TaskName $NomeTarefa -ErrorAction SilentlyContinue) {
+        & schtasks.exe /Delete /TN $NomeTarefa /F | Out-Null
+    }
+    if ($tarefaLegada) {
+        & schtasks.exe /Change /TN $TarefaLegada /ENABLE | Out-Null
+        & schtasks.exe /Run /TN $TarefaLegada | Out-Null
+        Write-Host "Tarefa antiga '$TarefaLegada' reativada e iniciada."
+        Start-Sleep -Seconds 40
+        try {
+            $r = Invoke-WebRequest -Uri "http://localhost:$($Portas[0])/health" -UseBasicParsing -TimeoutSec 5
+            Write-Host "Instalacao antiga respondendo ($($r.StatusCode))."
+        } catch { Write-Host 'ATENCAO: a instalacao antiga nao respondeu. O programa esta fora do ar.' -ForegroundColor Red }
+    }
 }
 exit 1
