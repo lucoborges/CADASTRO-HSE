@@ -9,6 +9,13 @@
     <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
   </PropertyGroup>
 
+  <!-- A pasta tests/ é um projeto separado (tests/HSE-Cadastros.Tests); não entra neste -->
+  <ItemGroup>
+    <Compile Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
+  </ItemGroup>
+
   <!-- Arquivos que o programa lê da pasta de execução e precisam ir junto na publicação -->
   <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

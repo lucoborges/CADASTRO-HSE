@@ -16,7 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  # Roda em máquina do GitHub (não no servidor). Se não compilar, nada chega ao servidor.
+  # Roda em máquina do GitHub (não no servidor). Se não compilar ou um teste falhar,
+  # nada chega ao servidor.
   compilar:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -27,6 +28,9 @@ jobs:
           dotnet-version: 8.0.x
       - name: Compilar em Release
         run: dotnet build HSE-Cadastros.csproj -c Release --nologo
+      # Testes das rotas: sobem os servidores em memória, sem navegador e sem rede
+      - name: Testes
+        run: dotnet test tests/HSE-Cadastros.Tests -c Release --nologo
 
   # Roda no servidor (runner SERVIDOR2), só na master e só se a compilação passar
   deploy:

@@ -29,6 +29,10 @@ namespace HSE.Automation.Utils
         // Groq
         public static string GroqModelo { get; private set; } = "openai/gpt-oss-120b";
 
+        // Chave exigida de quem chama os três servidores (cabeçalho X-Api-Key). Vazia = sem autenticação.
+        // Em produção fica em config\appsettings.Production.json, nunca no repositório.
+        public static string ApiKey { get; private set; } = "";
+
         // Logs
         public static string LogsPasta { get; private set; } = "logs";
         public static int LogsDiasRetencao { get; private set; } = 30;
@@ -53,6 +57,8 @@ namespace HSE.Automation.Utils
             PlanilhaMarcas = Texto(c, "Caminhos:PlanilhaMarcas", PlanilhaMarcas);
 
             GroqModelo = Texto(c, "GroqApi:Modelo", GroqModelo);
+
+            ApiKey = Texto(c, "Seguranca:ApiKey", ApiKey);
 
             LogsPasta = Texto(c, "Logs:Pasta", LogsPasta);
             if (int.TryParse(c["Logs:DiasRetencao"], out int dias) && dias > 0) LogsDiasRetencao = dias;
