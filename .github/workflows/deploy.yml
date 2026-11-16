@@ -1,15 +1,39 @@
-name: Deploy
+name: Compilar e Deploy
 
 on:
   push:
     branches: [master]
+  # Execução manual (aba Actions > Run workflow). Com "simular_falha" marcado, a versão nova
+  # é tratada como se não tivesse subido, para testar a volta automática no servidor.
+  workflow_dispatch:
+    inputs:
+      simular_falha:
+        description: 'Simular falha da versão nova (testa a volta automática; reinicia o programa duas vezes)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
+  # Roda em máquina do GitHub (não no servidor). Se não compilar, nada chega ao servidor.
+  compilar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Compilar em Release
+        run: dotnet build HSE-Cadastros.csproj -c Release --nologo
+
+  # Roda no servidor (runner SERVIDOR2), só na master e só se a compilação passar
   deploy:
+    needs: compilar
+    if: github.ref == 'refs/heads/master'
     runs-on: self-hosted
+    timeout-minutes: 20
     concurrency: deploy-producao
     steps:
       # O servidor é Windows Server 2012 R2: as ações do GitHub baseadas em Node.js (como
@@ -27,5 +51,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Falha no checkout. O programa nao foi alterado.' }
 
           $versao = "${{ github.sha }}".Substring(0, 7)
-          & (Join-Path $codigo 'deploy\deploy.ps1') -Versao $versao
+          $extras = @{}
+          if ('${{ inputs.simular_falha }}' -eq 'true') { $extras['SimularFalha'] = $true }
+          & (Join-Path $codigo 'deploy\deploy.ps1') -Versao $versao @extras
           exit $LASTEXITCODE

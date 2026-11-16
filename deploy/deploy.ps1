@@ -27,7 +27,9 @@ param(
     [int[]]$Portas = @(6001, 6002, 6003),
     # Instalacao antiga (tarefa interativa rodando de bin\Debug); fica desativada como reserva
     [string]$TarefaLegada = 'HSE-Cadastros-Service',
-    [string]$PastaLegada = 'C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE'
+    [string]$PastaLegada = 'C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE',
+    # Teste da volta automatica: a versao nova sobe de verdade, mas e tratada como se tivesse falhado
+    [switch]$SimularFalha
 )
 
 $ErrorActionPreference = 'Stop'
@@ -132,6 +134,9 @@ if (-not (Test-Path $config)) {
 }
 
 if (Test-Path $novo) { Remove-Item $novo -Recurse -Force }
+# Versoes que falharam em deploys anteriores: guarda so a mais recente, para nao encher o disco
+Get-ChildItem $Raiz -Directory -Filter 'app-falhou-*' | Sort-Object Name -Descending | Select-Object -Skip 1 |
+    ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
 dotnet publish (Join-Path $Origem 'HSE-Cadastros.csproj') -c Release -o $novo --nologo -v q
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $novo 'HSE-Cadastros.exe'))) {
     throw 'A publicacao falhou. O programa em execucao nao foi alterado.'
@@ -182,6 +187,10 @@ try {
     Write-Host '4. Iniciando e conferindo a saude...'
     Start-ScheduledTask -TaskName $NomeTarefa
     $subiu = Testar-Saude
+    if ($SimularFalha) {
+        Write-Host "   TESTE: falha simulada (a versao nova respondeu: $subiu). Seguindo para a volta automatica." -ForegroundColor Yellow
+        $subiu = $false
+    }
 }
 catch {
     Write-Host "   Falha durante a troca: $($_.Exception.Message)" -ForegroundColor Red
