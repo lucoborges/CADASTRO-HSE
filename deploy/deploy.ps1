@@ -94,14 +94,25 @@ function Testar-Saude {
 }
 
 function Garantir-Tarefa {
-    if (Get-ScheduledTask -TaskName $NomeTarefa -ErrorAction SilentlyContinue) { return }
+    $existente = Get-ScheduledTask -TaskName $NomeTarefa -ErrorAction SilentlyContinue
+    if ($existente) {
+        if ($existente.Settings.ExecutionTimeLimit -ne 'PT0S') {
+            Write-Host "   Tirando o limite de tempo da tarefa '$NomeTarefa' (estava $($existente.Settings.ExecutionTimeLimit))..."
+            $existente.Settings.ExecutionTimeLimit = 'PT0S'
+            $existente | Set-ScheduledTask | Out-Null
+        }
+        return
+    }
     Write-Host "   Criando a tarefa agendada '$NomeTarefa' (boot, sem sessao aberta)..."
     $acao = New-ScheduledTaskAction -Execute $iniciar -WorkingDirectory $Raiz
     $gatilho = New-ScheduledTaskTrigger -AtStartup
     $principal = New-ScheduledTaskPrincipal -UserId 'Administrator' -LogonType S4U -RunLevel Highest
-    # Sem limite de tempo: com limite, o Windows encerra a tarefa depois de 72 horas
     $ajustes = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
-        -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+        -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    # Sem limite de tempo: com o padrao, o Windows encerra a tarefa depois de 72 horas.
+    # No Server 2012 R2 o parametro -ExecutionTimeLimit ([TimeSpan]::Zero) e ignorado
+    # (a tarefa sai com PT72H), entao o valor e gravado direto no objeto.
+    $ajustes.ExecutionTimeLimit = 'PT0S'
     Register-ScheduledTask -TaskName $NomeTarefa -Action $acao -Trigger $gatilho -Principal $principal -Settings $ajustes `
         -Description 'HSE-Cadastros: cadastro de produtos, fornecedores e clientes (portas 6001-6003)' | Out-Null
 }
