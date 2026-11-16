@@ -139,8 +139,10 @@ if ($primeiraMigracao -and -not $jaTemBackup -and (Test-Path $PastaLegada)) {
     if ($LASTEXITCODE -ge 8) { throw 'O backup da pasta antiga falhou. O programa em execucao nao foi alterado.' }
 }
 
-$tarefaLegada = Get-ScheduledTask -TaskName $TarefaLegada -ErrorAction SilentlyContinue
-$legadaEstavaAtiva = $tarefaLegada -and $tarefaLegada.State -ne 'Disabled'
+# Atencao: nomes de variavel nao diferenciam maiusculas no PowerShell. Este objeto nao pode
+# se chamar $tarefaLegada, senao sobrescreve o parametro $TarefaLegada (o nome da tarefa).
+$objLegada = Get-ScheduledTask -TaskName $TarefaLegada -ErrorAction SilentlyContinue
+$legadaEstavaAtiva = $objLegada -and $objLegada.State -ne 'Disabled'
 
 # Cria a tarefa nova com o programa ainda no ar: registrar nao inicia nada, e se o
 # registro falhar o deploy para aqui, sem ter derrubado o programa.
@@ -199,7 +201,7 @@ else {
     if (Get-ScheduledTask -TaskName $NomeTarefa -ErrorAction SilentlyContinue) {
         & schtasks.exe /Delete /TN $NomeTarefa /F | Out-Null
     }
-    if ($tarefaLegada) {
+    if ($objLegada) {
         & schtasks.exe /Change /TN $TarefaLegada /ENABLE | Out-Null
         & schtasks.exe /Run /TN $TarefaLegada | Out-Null
         Write-Host "Tarefa antiga '$TarefaLegada' reativada e iniciada."

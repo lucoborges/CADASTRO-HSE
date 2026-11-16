@@ -7,8 +7,10 @@ rem Navegadores do Playwright ja instalados no perfil do Administrator
 set PLAYWRIGHT_BROWSERS_PATH=C:\Users\Administrator\AppData\Local\ms-playwright
 
 set RAIZ=%~dp0
-for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd"') do set DIA=%%i
-set LOG=%RAIZ%logs\hse-cadastros-%DIA%.log
+rem Data pelo wmic (nao depende do idioma do Windows nem do PowerShell)
+set AGORA=
+for /f "skip=1" %%i in ('wmic os get LocalDateTime') do if not defined AGORA set AGORA=%%i
+set LOG=%RAIZ%logs\hse-cadastros-%AGORA:~0,8%.log
 
 cd /d "%RAIZ%app"
 echo ==== Iniciando %DATE% %TIME% ====>> "%LOG%"
