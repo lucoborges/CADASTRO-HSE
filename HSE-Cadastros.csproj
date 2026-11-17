@@ -9,6 +9,11 @@
     <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
   </PropertyGroup>
 
+  <!-- Os testes chamam métodos internal (ex.: MarcaService.DescricaoContemPalavraChave) -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="HSE-Cadastros.Tests" />
+  </ItemGroup>
+
   <!-- A pasta tests/ é um projeto separado (tests/HSE-Cadastros.Tests); não entra neste -->
   <ItemGroup>
     <Compile Remove="tests\**" />

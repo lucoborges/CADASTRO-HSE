@@ -197,10 +197,18 @@ namespace HSE.Automation.Services
             return "1"; // GENERICA
         }
 
-        private bool DescricaoContemPalavraChave(string descricaoLower, string palavraChave)
+        /// <summary>
+        /// Verifica se a palavra-chave aparece como palavra completa na descrição.
+        /// O texto é escapado (nomes de marca podem ter parênteses, pontos, "+" etc.) e as bordas
+        /// usam "não há letra/número ao lado" em vez de \b, que falha quando o nome começa ou
+        /// termina com símbolo, como em "cs(f" ou "r)".
+        /// </summary>
+        internal static bool DescricaoContemPalavraChave(string descricaoLower, string palavraChave)
         {
-            // Verifica se a palavra-chave está como palavra completa
-            return Regex.IsMatch(descricaoLower, $@"\b{palavraChave}\b", RegexOptions.IgnoreCase);
+            if (string.IsNullOrEmpty(descricaoLower) || string.IsNullOrEmpty(palavraChave))
+                return false;
+
+            return Regex.IsMatch(descricaoLower, $@"(?<!\w){Regex.Escape(palavraChave)}(?!\w)", RegexOptions.IgnoreCase);
         }
 
         private bool DescricaoContemMarcaCompleta(string descricaoLower, string nomeMarcaLower)
