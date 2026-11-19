@@ -104,19 +104,34 @@ function Testar-Saude([string]$VersaoEsperada, [switch]$SoPortas) {
     return $true
 }
 
+# Espera depois do boot antes de iniciar. Com logon S4U o Windows precisa abrir a sessao do usuario
+# sem senha, e logo no inicio do boot isso falha: com espera zero a tarefa nem chega a rodar (foi o que
+# aconteceu no reinicio de 19/11/2026). As outras tarefas S4U do servidor usam os mesmos 2 minutos.
+$EsperaBoot = 'PT2M'
+
 function Garantir-Tarefa {
     $existente = Get-ScheduledTask -TaskName $NomeTarefa -ErrorAction SilentlyContinue
     if ($existente) {
+        $mudou = $false
         if ($existente.Settings.ExecutionTimeLimit -ne 'PT0S') {
             Write-Host "   Tirando o limite de tempo da tarefa '$NomeTarefa' (estava $($existente.Settings.ExecutionTimeLimit))..."
             $existente.Settings.ExecutionTimeLimit = 'PT0S'
-            $existente | Set-ScheduledTask | Out-Null
+            $mudou = $true
         }
+        foreach ($gatilhoExistente in @($existente.Triggers | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger' })) {
+            if ($gatilhoExistente.Delay -ne $EsperaBoot) {
+                Write-Host "   Ajustando a espera depois do boot para $EsperaBoot (estava '$($gatilhoExistente.Delay)')..."
+                $gatilhoExistente.Delay = $EsperaBoot
+                $mudou = $true
+            }
+        }
+        if ($mudou) { $existente | Set-ScheduledTask | Out-Null }
         return
     }
     Write-Host "   Criando a tarefa agendada '$NomeTarefa' (boot, sem sessao aberta)..."
     $acao = New-ScheduledTaskAction -Execute $iniciar -WorkingDirectory $Raiz
     $gatilho = New-ScheduledTaskTrigger -AtStartup
+    $gatilho.Delay = $EsperaBoot
     $principal = New-ScheduledTaskPrincipal -UserId 'Administrator' -LogonType S4U -RunLevel Highest
     $ajustes = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
         -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
