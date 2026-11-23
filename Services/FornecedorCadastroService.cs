@@ -642,9 +642,20 @@ namespace HSE.Automation.Services
                                 var codFornecedor = await novaAba.QuerySelectorAsync("#cdFornecedor, input[name='cdFornecedor']");
                                 if (codFornecedor != null)
                                 {
-                                    codigoFornecedor = (await codFornecedor.GetAttributeAsync("value"))?.Trim();
-                                    Console.WriteLine($"✅ Código do fornecedor encontrado: {codigoFornecedor}");
-                                    cadastroRealizado = true;
+                                    var codigoEncontrado = (await codFornecedor.GetAttributeAsync("value"))?.Trim();
+                                    Console.WriteLine($"✅ Código do fornecedor encontrado: {codigoEncontrado}");
+
+                                    // Fornecedor já existe: só devolve o código se ele também estiver
+                                    // marcado como cliente — senão não aparece na aba de clientes.
+                                    if (await GarantirTambemECliente(novaAba))
+                                    {
+                                        codigoFornecedor = codigoEncontrado;
+                                        cadastroRealizado = true;
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("❌ Não foi possível marcar 'Também é cliente' no cadastro existente — código não será enviado");
+                                    }
                                 }
                                 else
                                 {
@@ -764,40 +775,10 @@ namespace HSE.Automation.Services
                                     novaAba = context.Pages.Last();
                                     await novaAba.BringToFrontAsync();
 
-                                    var tambemECliente = await novaAba.QuerySelectorAsync("#idClienteFornecedor");
-
-                                    if (tambemECliente != null)
+                                    if (!await GarantirTambemECliente(novaAba))
                                     {
-                                        Console.WriteLine("✅ Botão de 'Também é cliente' encontrado");
-
-                                        // Aguarda um pouco antes de clicar
-                                        await Task.Delay(1000);
-
-                                        // Tenta salvar e captura qualquer exceção
-                                        Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'Também é cliente'...");
-                                        await tambemECliente.ClickAsync();
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine("❌ Botão 'Também é cliente' não encontrado");
-                                    }
-                                    Console.WriteLine("\n🔍 PROCURANDO BOTÃO DE SALVAR...");
-                                    var botaoSalvar = await novaAba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
-
-                                    if (botaoSalvar != null)
-                                    {
-                                        Console.WriteLine("✅ Botão de salvar encontrado");
-
-                                        // Aguarda um pouco antes de clicar
-                                        await Task.Delay(1000);
-
-                                        // Tenta salvar e captura qualquer exceção
-                                        Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'SALVAR'...");
-                                        await botaoSalvar.ClickAsync();
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine("❌ Botão salvar não encontrado");
+                                        Console.WriteLine("❌ Não foi possível marcar 'Também é cliente' — código não será enviado");
+                                        codigoFornecedor = null;
                                     }
                                 }
                                 catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
@@ -855,6 +836,88 @@ namespace HSE.Automation.Services
                 }
             }
         }
+
+        /// <summary>
+        /// Na aba de edição do fornecedor, garante que "Também é cliente" (#idClienteFornecedor)
+        /// esteja marcado. Já marcado: não mexe em nada (clicar de novo desmarcaria).
+        /// Desmarcado: marca e salva. Devolve false se não conseguiu confirmar a marcação.
+        /// </summary>
+        static async Task<bool> GarantirTambemECliente(IPage aba)
+        {
+            const string seletor = "#idClienteFornecedor";
+            bool cliqueiSalvar = false;
+            try
+            {
+                var checkbox = await aba.QuerySelectorAsync(seletor);
+                if (checkbox == null)
+                {
+                    Console.WriteLine("❌ Opção 'Também é cliente' não encontrada");
+                    return false;
+                }
+
+                if (await EstaMarcado(checkbox))
+                {
+                    Console.WriteLine("✅ 'Também é cliente' já está marcado — nada a alterar");
+                    return true;
+                }
+
+                Console.WriteLine("\n🖱️ MARCANDO 'Também é cliente'...");
+                await Task.Delay(1000);
+                await checkbox.ClickAsync();
+                await Task.Delay(500);
+
+                if (!await EstaMarcado(checkbox))
+                {
+                    // Checkbox estilizado (input escondido atrás de um switch): força o clique.
+                    await checkbox.ClickAsync(new ElementHandleClickOptions { Force = true });
+                    await Task.Delay(500);
+                }
+
+                if (!await EstaMarcado(checkbox))
+                {
+                    Console.WriteLine("❌ Cliquei em 'Também é cliente' mas a opção continua desmarcada");
+                    return false;
+                }
+
+                Console.WriteLine("✅ 'Também é cliente' marcado");
+
+                var botaoSalvar = await aba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
+                if (botaoSalvar == null)
+                {
+                    Console.WriteLine("❌ Botão salvar não encontrado — marcação não gravada");
+                    return false;
+                }
+
+                Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'SALVAR'...");
+                await Task.Delay(1000);
+                cliqueiSalvar = true;
+                await botaoSalvar.ClickAsync();
+
+                // Ao salvar, o HSE fecha a aba de edição.
+                for (int i = 0; i < 20 && !aba.IsClosed; i++)
+                    await Task.Delay(500);
+
+                Console.WriteLine(aba.IsClosed
+                    ? "✅ Aba de edição fechada - alteração salva"
+                    : "⚠️ Aba de edição continua aberta após salvar");
+                return true;
+            }
+            catch (PlaywrightException ex) when (cliqueiSalvar && (ex.Message.Contains("closed") || ex.Message.Contains("Target page")))
+            {
+                // A aba fechou durante o salvar: é o comportamento normal do HSE após gravar.
+                Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Erro ao marcar 'Também é cliente': {ex.Message}");
+                return false;
+            }
+        }
+
+        static async Task<bool> EstaMarcado(IElementHandle checkbox) =>
+            await checkbox.EvaluateAsync<bool>("el => !!el.checked");
+
         static string LimparCnpj(string cnpj)
         {
             if (string.IsNullOrEmpty(cnpj))
