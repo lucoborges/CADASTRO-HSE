@@ -13,7 +13,10 @@ na mesma máquina):
 | `POST :6001/api/produtos/cadastrar` | cadastra produto (grupo e marca escolhidos com a API da Groq) | `Servidores:Produtos` |
 | `POST :6002/api/fornecedores/cadastrar` | cadastra fornecedor pelo CNPJ | `Servidores:Fornecedores` |
 | `POST :6003/api/clientes/cadastrar` | cadastra cliente pelo CNPJ (inscrição estadual opcional) | `Servidores:Clientes` |
-| `POST :6004/api/transportadoras/cadastrar` | cadastra transportadora pelo CNPJ (a razão social o HSE busca na Receita) | `Servidores:Transportadoras` |
+| `POST :6006/api/transportadoras/cadastrar` | cadastra transportadora pelo CNPJ (a razão social o HSE busca na Receita) | `Servidores:Transportadoras` |
+
+As portas 6004 e 6005 não são usadas aqui: pertencem ao Datasheet e ao AribaSourcing (ver
+`Gateway:Servicos` no GatewayAPI).
 
 Exemplos de tarefa (é o que o gateway envia):
 
@@ -145,7 +148,7 @@ Para testar a volta automática: aba Actions > "Compilar e Deploy" > Run workflo
 
 ```powershell
 Get-ScheduledTask HSE-Cadastros                        # estado
-Invoke-RestMethod http://localhost:6001/health         # saúde e versão (também 6002, 6003 e 6004)
+Invoke-RestMethod http://localhost:6001/health         # saúde e versão (também 6002, 6003 e 6006)
 Get-Content C:\Services\HSE-Cadastros\logs\hse-cadastros-*.log -Tail 50 -Encoding UTF8   # últimos logs
 Get-Content C:\Services\HSE-Cadastros\app\versao.txt   # versão instalada
 ```

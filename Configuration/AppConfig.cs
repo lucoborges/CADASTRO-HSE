@@ -16,7 +16,8 @@ namespace HSE.Automation.Configuration
         public static string UrlProdutos { get; private set; } = "http://localhost:6001";
         public static string UrlFornecedores { get; private set; } = "http://localhost:6002";
         public static string UrlClientes { get; private set; } = "http://localhost:6003";
-        public static string UrlTransportadoras { get; private set; } = "http://localhost:6004";
+        // 6004 e 6005 são do Datasheet e do AribaSourcing (GatewayAPI)
+        public static string UrlTransportadoras { get; private set; } = "http://localhost:6006";
 
         // Site do HSE
         public static string HseUrlBase { get; private set; } = "https://app.hsesistemas.com.br";

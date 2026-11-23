@@ -24,7 +24,7 @@ param(
     [string]$Raiz = 'C:\Services\HSE-Cadastros',
     [string]$NomeTarefa = 'HSE-Cadastros',
     [string]$Versao = 'manual',
-    [int[]]$Portas = @(6001, 6002, 6003, 6004),
+    [int[]]$Portas = @(6001, 6002, 6003, 6006),
     # Instalacao antiga (tarefa interativa rodando de bin\Debug); fica desativada como reserva
     [string]$TarefaLegada = 'HSE-Cadastros-Service',
     [string]$PastaLegada = 'C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE',
@@ -140,7 +140,7 @@ function Garantir-Tarefa {
     # (a tarefa sai com PT72H), entao o valor e gravado direto no objeto.
     $ajustes.ExecutionTimeLimit = 'PT0S'
     Register-ScheduledTask -TaskName $NomeTarefa -Action $acao -Trigger $gatilho -Principal $principal -Settings $ajustes `
-        -Description 'HSE-Cadastros: cadastro de produtos, fornecedores, clientes e transportadoras (portas 6001-6004)' | Out-Null
+        -Description 'HSE-Cadastros: cadastro de produtos, fornecedores, clientes e transportadoras (portas 6001-6003 e 6006; 6004 e 6005 sao do Datasheet e do Ariba)' | Out-Null
 }
 
 # ------------------------------------------------------------
