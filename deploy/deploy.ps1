@@ -2,7 +2,7 @@
 # Deploy do HSE-Cadastros (mesmo padrao do GatewayAPI e do ComprasGOV).
 #
 # Ordem: publica a versao nova em uma pasta separada -> so entao para o programa ->
-# troca as pastas -> inicia -> confere /health nas 3 portas e o log de inicializacao.
+# troca as pastas -> inicia -> confere /health em todas as portas e o log de inicializacao.
 # Se a versao nova nao subir, volta para a anterior e termina com erro.
 #
 # Estrutura em $Raiz (padrao C:\Services\HSE-Cadastros):
@@ -24,7 +24,7 @@ param(
     [string]$Raiz = 'C:\Services\HSE-Cadastros',
     [string]$NomeTarefa = 'HSE-Cadastros',
     [string]$Versao = 'manual',
-    [int[]]$Portas = @(6001, 6002, 6003),
+    [int[]]$Portas = @(6001, 6002, 6003, 6004),
     # Instalacao antiga (tarefa interativa rodando de bin\Debug); fica desativada como reserva
     [string]$TarefaLegada = 'HSE-Cadastros-Service',
     [string]$PastaLegada = 'C:\Users\Administrator\Desktop\HSE-Cadastros\CADASTRO-HSE',
@@ -140,7 +140,7 @@ function Garantir-Tarefa {
     # (a tarefa sai com PT72H), entao o valor e gravado direto no objeto.
     $ajustes.ExecutionTimeLimit = 'PT0S'
     Register-ScheduledTask -TaskName $NomeTarefa -Action $acao -Trigger $gatilho -Principal $principal -Settings $ajustes `
-        -Description 'HSE-Cadastros: cadastro de produtos, fornecedores e clientes (portas 6001-6003)' | Out-Null
+        -Description 'HSE-Cadastros: cadastro de produtos, fornecedores, clientes e transportadoras (portas 6001-6004)' | Out-Null
 }
 
 # ------------------------------------------------------------

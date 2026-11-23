@@ -1,9 +1,11 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using HSE.Automation;
-using HSE.Automation.Models;
+using HSE.Automation.Api;
+using HSE.Automation.Models.Parceiros;
+using HSE.Automation.Models.Produtos;
+using HSE.Automation.Services.Parceiros;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -13,7 +15,7 @@ using Xunit;
 namespace HSE_Cadastros.Tests
 {
     /// <summary>
-    /// Sobe as rotas dos três servidores em memória. Nada sai para a rede e nenhum navegador
+    /// Sobe as rotas dos servidores em memória. Nada sai para a rede e nenhum navegador
     /// é aberto: o cadastro no HSE é trocado por um cadastro falso que registra o que recebeu.
     /// </summary>
     public class RotasTests
@@ -53,13 +55,14 @@ namespace HSE_Cadastros.Tests
         // ------------------------------------------------------------------ saúde
 
         [Fact]
-        public async Task Health_dos_tres_servidores_responde_com_versao()
+        public async Task Health_de_todos_os_servidores_responde_com_versao()
         {
             await using var produtos = await Subir(app => Rotas.Produtos(app, "", _ => throw new InvalidOperationException()));
             await using var fornecedores = await Subir(app => Rotas.Fornecedores(app, "", _ => throw new InvalidOperationException()));
             await using var clientes = await Subir(app => Rotas.Clientes(app, "", (_, _) => throw new InvalidOperationException()));
+            await using var transportadoras = await Subir(app => Rotas.Transportadoras(app, "", _ => throw new InvalidOperationException()));
 
-            foreach (var servidor in new[] { produtos, fornecedores, clientes })
+            foreach (var servidor in new[] { produtos, fornecedores, clientes, transportadoras })
             {
                 var resposta = await servidor.GetTestClient().GetAsync("/health");
 
@@ -199,10 +202,12 @@ namespace HSE_Cadastros.Tests
             Assert.Equal(0, chamadas);
         }
 
-        [Fact]
-        public async Task Fornecedor_que_falha_devolve_400()
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        public async Task Fornecedor_que_falha_devolve_400(string codigoDevolvido)
         {
-            await using var servidor = await Subir(app => Rotas.Fornecedores(app, "", _ => Task.FromResult<string>(null)));
+            await using var servidor = await Subir(app => Rotas.Fornecedores(app, "", _ => Task.FromResult(codigoDevolvido)));
 
             var resposta = await servidor.GetTestClient().PostAsJsonAsync("/api/fornecedores/cadastrar", TarefaCnpj(CnpjReal));
 
@@ -291,6 +296,119 @@ namespace HSE_Cadastros.Tests
             Assert.False((await Json(resposta)).GetProperty("sucesso").GetBoolean());
         }
 
+        // ------------------------------------------------------------------ transportadoras
+
+        [Fact]
+        public async Task Transportadora_com_cnpj_real_e_cadastrada_so_com_os_digitos_e_devolve_codigo_e_razao_social()
+        {
+            string recebido = null;
+            await using var servidor = await Subir(app => Rotas.Transportadoras(app, "", cnpj =>
+            {
+                recebido = cnpj;
+                return Task.FromResult(new TransportadoraResultado { Codigo = "555", RazaoSocial = "TRANSPORTES EXEMPLO LTDA" });
+            }));
+
+            var resposta = await servidor.GetTestClient().PostAsJsonAsync("/api/transportadoras/cadastrar", TarefaCnpj(CnpjReal));
+
+            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+            var json = await Json(resposta);
+            Assert.True(json.GetProperty("sucesso").GetBoolean());
+            Assert.Equal("T-456", json.GetProperty("codigoTarefa").GetString());
+            Assert.Equal("555", json.GetProperty("codigoTransportadora").GetString());
+            Assert.Equal("TRANSPORTES EXEMPLO LTDA", json.GetProperty("razaoSocial").GetString());
+            Assert.False(json.GetProperty("transportadoraExistente").GetBoolean());
+            Assert.Equal(CnpjRealSoDigitos, recebido);
+        }
+
+        [Fact]
+        public async Task Transportadora_ja_cadastrada_devolve_sucesso_com_o_codigo_existente()
+        {
+            await using var servidor = await Subir(app => Rotas.Transportadoras(app, "", _ =>
+                Task.FromResult(new TransportadoraResultado { Codigo = "321", JaCadastrada = true, Mensagem = "Transportadora já cadastrada" })));
+
+            var resposta = await servidor.GetTestClient().PostAsJsonAsync("/api/transportadoras/cadastrar", TarefaCnpj(CnpjReal));
+
+            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+            var json = await Json(resposta);
+            Assert.Equal("321", json.GetProperty("codigoTransportadora").GetString());
+            Assert.True(json.GetProperty("transportadoraExistente").GetBoolean());
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("{ isto nao e json")]
+        [InlineData("{\"codigoTarefa\":\"T-1\",\"dados\":{}}")]
+        public async Task Transportadora_com_pedido_invalido_devolve_400_e_nao_cadastra(string corpo)
+        {
+            int chamadas = 0;
+            await using var servidor = await Subir(app => Rotas.Transportadoras(app, "", _ =>
+            {
+                chamadas++;
+                return Task.FromResult(new TransportadoraResultado { Codigo = "1" });
+            }));
+
+            var resposta = await servidor.GetTestClient().PostAsync("/api/transportadoras/cadastrar",
+                new StringContent(corpo, Encoding.UTF8, "application/json"));
+
+            Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+            Assert.Equal(0, chamadas);
+        }
+
+        [Fact]
+        public async Task Transportadora_com_cnpj_de_teste_devolve_cadastro_simulado_sem_abrir_o_HSE()
+        {
+            int chamadas = 0;
+            await using var servidor = await Subir(app => Rotas.Transportadoras(app, "", _ =>
+            {
+                chamadas++;
+                return Task.FromResult(new TransportadoraResultado { Codigo = "1" });
+            }));
+
+            var resposta = await servidor.GetTestClient().PostAsJsonAsync("/api/transportadoras/cadastrar", TarefaCnpj("22.222.222/2222-22"));
+
+            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+            Assert.StartsWith("TRANSP-TEST-", (await Json(resposta)).GetProperty("codigoTransportadora").GetString());
+            Assert.Equal(0, chamadas);
+        }
+
+        [Fact]
+        public async Task Transportadora_que_falha_devolve_400_com_a_mensagem()
+        {
+            await using var servidor = await Subir(app => Rotas.Transportadoras(app, "", _ =>
+                Task.FromResult(TransportadoraResultado.Falha("Razão social não carregou"))));
+
+            var resposta = await servidor.GetTestClient().PostAsJsonAsync("/api/transportadoras/cadastrar", TarefaCnpj(CnpjReal));
+
+            Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+            var json = await Json(resposta);
+            Assert.False(json.GetProperty("sucesso").GetBoolean());
+            Assert.Equal("Razão social não carregou", json.GetProperty("mensagem").GetString());
+        }
+
+        [Fact]
+        public async Task Transportadora_com_erro_inesperado_devolve_200_com_sucesso_falso()
+        {
+            await using var servidor = await Subir(app => Rotas.Transportadoras(app, "", _ =>
+                throw new InvalidOperationException("navegador caiu")));
+
+            var resposta = await servidor.GetTestClient().PostAsJsonAsync("/api/transportadoras/cadastrar", TarefaCnpj(CnpjReal));
+
+            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+            var json = await Json(resposta);
+            Assert.False(json.GetProperty("sucesso").GetBoolean());
+            Assert.Contains("navegador caiu", json.GetProperty("mensagem").GetString());
+        }
+
+        [Theory]
+        [InlineData("{\"status\":\"existe\",\"transportadora\":\"18100\"}", "18100")]
+        [InlineData("{\"status\":\"existe\",\"transportadora\":17565}", "17565")]
+        [InlineData("{\"status\":\"ok\",\"transportadora\":0}", null)]
+        [InlineData("{\"status\":\"existe\",\"transportadora\":\"0\"}", null)]
+        public void Verificacao_de_cnpj_do_HSE_e_lida_corretamente(string respostaHse, string codigoEsperado)
+        {
+            Assert.Equal(codigoEsperado, TransportadoraCadastroService.LerCodigoDaVerificacao(respostaHse));
+        }
+
         // ------------------------------------------------------------------ chave de API
 
         [Theory]
@@ -314,12 +432,18 @@ namespace HSE_Cadastros.Tests
                 chamadas++;
                 return Task.FromResult("1");
             }));
+            await using var transportadoras = await Subir(app => Rotas.Transportadoras(app, "chave-de-teste", _ =>
+            {
+                chamadas++;
+                return Task.FromResult(new TransportadoraResultado { Codigo = "1" });
+            }));
 
             var pedidos = new (WebApplication Servidor, string Rota, object Corpo)[]
             {
                 (produtos, "/api/produtos/cadastrar", TarefaProduto()),
                 (fornecedores, "/api/fornecedores/cadastrar", TarefaCnpj(CnpjReal)),
                 (clientes, "/api/clientes/cadastrar", TarefaCnpj(CnpjReal)),
+                (transportadoras, "/api/transportadoras/cadastrar", TarefaCnpj(CnpjReal)),
             };
 
             foreach (var pedido in pedidos)
