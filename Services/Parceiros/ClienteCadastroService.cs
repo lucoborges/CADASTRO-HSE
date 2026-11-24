@@ -378,75 +378,86 @@ namespace HSE.Automation.Services.Parceiros
         }
 
         /// <summary>
-        /// Na aba de edição do fornecedor, garante que "Também é cliente" (#idClienteFornecedor)
-        /// esteja marcado. Já marcado: não mexe em nada (clicar de novo desmarcaria).
-        /// Desmarcado: marca e salva. Devolve false se não conseguiu confirmar a marcação.
+        /// Na ficha do fornecedor (fornecedorAlt.php), garante que "Também é cliente" (#idClienteFornecedor)
+        /// esteja marcado. Já marcado: não mexe em nada. Desmarcado: entra em modo edição ("Editar"),
+        /// marca, salva e reabre a ficha para confirmar que gravou. Devolve false se não deu para confirmar.
+        /// Nunca clica em "Cancelar": no modo edição esse botão CANCELA o fornecedor.
         /// </summary>
         static async Task<bool> GarantirTambemECliente(IPage aba)
         {
             const string seletor = "#idClienteFornecedor";
-            bool cliqueiSalvar = false;
             try
             {
-                var checkbox = await aba.QuerySelectorAsync(seletor);
-                if (checkbox == null)
+                var codigo = await ValorCampo(aba, "#cdFornecedor");
+                var checkbox = aba.Locator(seletor);
+                if (await checkbox.CountAsync() == 0)
                 {
                     Console.WriteLine("❌ Opção 'Também é cliente' não encontrada");
                     return false;
                 }
 
-                if (await EstaMarcado(checkbox))
+                if (await checkbox.IsCheckedAsync())
                 {
                     Console.WriteLine("✅ 'Também é cliente' já está marcado — nada a alterar");
                     return true;
                 }
 
+                // A ficha de um fornecedor existente abre só para consulta (campos desabilitados).
+                // O botão "Editar" recarrega a página em fornecedorAlt.php?editar=1&cdFornecedor=...
+                if (!await checkbox.IsEnabledAsync())
+                {
+                    var botaoEditar = aba.Locator("#btEditar");
+                    if (await botaoEditar.CountAsync() == 0)
+                    {
+                        Console.WriteLine("❌ Ficha em modo consulta e botão 'Editar' não encontrado");
+                        return false;
+                    }
+
+                    Console.WriteLine("\n🖱️ CLICANDO EM 'EDITAR' (ficha abre só para consulta)...");
+                    await botaoEditar.ClickAsync();
+                    await aba.WaitForURLAsync("**editar=1**", new PageWaitForURLOptions { Timeout = 30000 });
+                    await aba.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+                    checkbox = aba.Locator(seletor);
+                    await checkbox.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 15000 });
+                    if (!await checkbox.IsEnabledAsync())
+                    {
+                        Console.WriteLine("❌ Mesmo em modo edição a opção 'Também é cliente' continua desabilitada");
+                        return false;
+                    }
+                }
+
                 Console.WriteLine("\n🖱️ MARCANDO 'Também é cliente'...");
-                await Task.Delay(1000);
-                await checkbox.ClickAsync();
-                await Task.Delay(500);
-
-                if (!await EstaMarcado(checkbox))
-                {
-                    // Checkbox estilizado (input escondido atrás de um switch): força o clique.
-                    await checkbox.ClickAsync(new ElementHandleClickOptions { Force = true });
-                    await Task.Delay(500);
-                }
-
-                if (!await EstaMarcado(checkbox))
-                {
-                    Console.WriteLine("❌ Cliquei em 'Também é cliente' mas a opção continua desmarcada");
-                    return false;
-                }
-
+                await checkbox.CheckAsync();
                 Console.WriteLine("✅ 'Também é cliente' marcado");
 
-                var botaoSalvar = await aba.QuerySelectorAsync("#btSalvar, button:has-text('Salvar'), button:has-text('SALVAR'), .btSalvar, .btn-salvar");
-                if (botaoSalvar == null)
+                var botaoSalvar = aba.Locator("#btSalvar");
+                if (await botaoSalvar.CountAsync() == 0)
                 {
                     Console.WriteLine("❌ Botão salvar não encontrado — marcação não gravada");
                     return false;
                 }
 
                 Console.WriteLine("\n🖱️ CLICANDO NO BOTÃO 'SALVAR'...");
-                await Task.Delay(1000);
-                cliqueiSalvar = true;
-                await botaoSalvar.ClickAsync();
+                try
+                {
+                    await botaoSalvar.ClickAsync();
+                    // Dá tempo do HSE gravar (ele fecha a aba ou sai do modo edição).
+                    for (int i = 0; i < 20 && !aba.IsClosed && aba.Url.Contains("editar=1"); i++)
+                        await Task.Delay(500);
+                }
+                catch (PlaywrightException ex) when (ex.Message.Contains("closed") || ex.Message.Contains("Target page"))
+                {
+                    // Aba fechou durante o salvar: comportamento normal do HSE após gravar.
+                }
 
-                // Ao salvar, o HSE fecha a aba de edição.
-                for (int i = 0; i < 20 && !aba.IsClosed; i++)
-                    await Task.Delay(500);
+                if (!aba.IsClosed && aba.Url.Contains("editar=1"))
+                {
+                    var aviso = await AvisoNaTela(aba);
+                    Console.WriteLine($"⚠️ Continua em modo edição após salvar{(string.IsNullOrEmpty(aviso) ? "" : $" — aviso do HSE: {aviso}")}");
+                }
 
-                Console.WriteLine(aba.IsClosed
-                    ? "✅ Aba de edição fechada - alteração salva"
-                    : "⚠️ Aba de edição continua aberta após salvar");
-                return true;
-            }
-            catch (PlaywrightException ex) when (cliqueiSalvar && (ex.Message.Contains("closed") || ex.Message.Contains("Target page")))
-            {
-                // A aba fechou durante o salvar: é o comportamento normal do HSE após gravar.
-                Console.WriteLine("✅ Página foi fechada automaticamente após salvar");
-                return true;
+                return await ConfirmarTambemECliente(aba.Context, codigo);
             }
             catch (Exception ex)
             {
@@ -455,8 +466,60 @@ namespace HSE.Automation.Services.Parceiros
             }
         }
 
-        static async Task<bool> EstaMarcado(IElementHandle checkbox) =>
-            await checkbox.EvaluateAsync<bool>("el => !!el.checked");
+        /// <summary>Reabre a ficha em modo consulta, numa aba nova, e lê se "Também é cliente" ficou gravado.</summary>
+        static async Task<bool> ConfirmarTambemECliente(IBrowserContext contexto, string codigo)
+        {
+            if (string.IsNullOrEmpty(codigo))
+            {
+                Console.WriteLine("⚠️ Sem código do fornecedor para confirmar a gravação");
+                return false;
+            }
 
+            var pagina = await contexto.NewPageAsync();
+            try
+            {
+                await pagina.GotoAsync(AppConfig.HseUrl($"fornecedorAlt.php?cdFornecedor={codigo}"));
+                await pagina.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                var checkbox = pagina.Locator("#idClienteFornecedor");
+                await checkbox.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15000 });
+
+                bool gravado = await checkbox.IsCheckedAsync();
+                Console.WriteLine(gravado
+                    ? "✅ Confirmado: 'Também é cliente' gravado no fornecedor"
+                    : "❌ Reabri a ficha e 'Também é cliente' continua desmarcado — não gravou");
+                return gravado;
+            }
+            finally
+            {
+                await pagina.CloseAsync();
+            }
+        }
+
+        static async Task<string> ValorCampo(IPage pagina, string seletor)
+        {
+            try
+            {
+                var campo = pagina.Locator(seletor);
+                if (await campo.CountAsync() == 0) return string.Empty;
+                return (await campo.First.InputValueAsync(new LocatorInputValueOptions { Timeout = 2000 }))?.Trim() ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        static async Task<string> AvisoNaTela(IPage pagina)
+        {
+            try
+            {
+                var aviso = pagina.Locator(".jq-toast-single, .popover-content, .popover-body").Last;
+                return await aviso.CountAsync() > 0 ? (await aviso.InnerTextAsync(new LocatorInnerTextOptions { Timeout = 1000 }))?.Trim() : string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
     }
 }
