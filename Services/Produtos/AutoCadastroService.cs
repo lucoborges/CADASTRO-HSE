@@ -396,13 +396,73 @@ namespace HSE.Automation.Services.Produtos
                     // Tenta salvar e aguardar código
                     var resultadoSalvar = await SalvarProdutoComVerificacaoMelhorada(paginaCadastro);
 
-                    if (!resultadoSalvar.Sucesso)
+                    // O formulário saiu da tela depois do Salvar (aconteceu com 8 cadastros
+                    // simultâneos). Confere no HSE se gravou; só cadastra de novo se a
+                    // consulta mostrar com certeza que não gravou — nunca às cegas.
+                    for (int recuperacao = 1;
+                         !resultadoSalvar.Sucesso && resultadoSalvar.MensagemErro == MensagemFormularioSumiu && recuperacao <= 2;
+                         recuperacao++)
                     {
-                        throw new Exception($"Erro ao salvar: {resultadoSalvar.MensagemErro}");
+                        await SalvarDiagnosticoFalha(paginaCadastro, $"{produtoRequest.RequestId}-sumiu{recuperacao}");
+
+                        Console.WriteLine($"🔎 [{produtoRequest.RequestId}] Conferindo no HSE se o produto foi gravado...");
+                        await Task.Delay(5000); // dá tempo ao HSE de concluir uma gravação em andamento
+                        var consulta = await ConsultaProdutoHse.ProcurarPorDescricao(paginaPrincipal, produtoRequest.Descricao);
+
+                        if (!consulta.Consultou)
+                        {
+                            throw new Exception(MensagemFormularioSumiu);
+                        }
+
+                        if (!string.IsNullOrEmpty(consulta.Codigo))
+                        {
+                            Console.WriteLine($"✅ [{produtoRequest.RequestId}] O Salvar tinha gravado no HSE. Código: {consulta.Codigo}");
+                            codigoGerado = consulta.Codigo;
+                            resultadoSalvar = (true, null, resultadoSalvar.TentativaAtual);
+                            break;
+                        }
+
+                        if (recuperacao == 2)
+                        {
+                            // Já refez uma vez e sumiu de novo: desiste, mas aqui sabemos que não gravou
+                            throw new Exception("O formulário saiu da tela duas vezes ao salvar. A consulta no HSE mostra " +
+                                                "que o produto NÃO foi gravado; pode reenviar.");
+                        }
+
+                        Console.WriteLine($"🔁 [{produtoRequest.RequestId}] Não foi gravado. Abrindo novo formulário para cadastrar de novo...");
+                        if (paginaCadastro != null && paginaCadastro != paginaPrincipal && !paginaCadastro.IsClosed)
+                        {
+                            try { await paginaCadastro.CloseAsync(); } catch { }
+                        }
+
+                        paginaCadastro = await AbrirNovoFormulario(paginaPrincipal, context, null);
+                        if (paginaCadastro == null)
+                        {
+                            throw new Exception("Não foi possível reabrir o formulário depois que ele saiu da tela (o produto não foi gravado)");
+                        }
+
+                        preenchimentoOk = await PreencherFormularioAutomaticamente(
+                            produtoRequest, grupoId, precoVenda, paginaCadastro, marcasDisponiveis);
+                        if (!preenchimentoOk)
+                        {
+                            throw new Exception("Erro ao preencher o formulário reaberto (o produto não foi gravado)");
+                        }
+
+                        resultadoSalvar = await SalvarProdutoComVerificacaoMelhorada(paginaCadastro);
                     }
 
-                    // Aguarda o código ser gerado após salvar
-                    codigoGerado = await FormularioHelper.AguardarCodigoSerGerado(paginaCadastro);
+                    if (!resultadoSalvar.Sucesso)
+                    {
+                        throw new Exception(resultadoSalvar.MensagemErro == MensagemFormularioSumiu
+                            ? MensagemFormularioSumiu
+                            : $"Erro ao salvar: {resultadoSalvar.MensagemErro}");
+                    }
+
+                    // Aguarda o código ser gerado após salvar (se a consulta já não trouxe)
+                    if (string.IsNullOrEmpty(codigoGerado))
+                    {
+                        codigoGerado = await FormularioHelper.AguardarCodigoSerGerado(paginaCadastro);
+                    }
                 }
 
                 if (string.IsNullOrEmpty(codigoGerado))
