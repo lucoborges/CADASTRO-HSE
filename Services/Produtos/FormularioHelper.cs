@@ -60,6 +60,25 @@ namespace HSE.Automation.Services.Produtos
             }
         }
 
+        /// <summary>
+        /// True se a página ainda é o formulário de produto (campo de código ou botão Salvar
+        /// presentes). False se a aba foi fechada ou passou a mostrar outra coisa.
+        /// </summary>
+        public static async Task<bool> FormularioEstaNaTela(IPage pagina)
+        {
+            try
+            {
+                if (pagina == null || pagina.IsClosed) return false;
+
+                return await pagina.QuerySelectorAsync(
+                    "#cod_produto, input[name='cod_produto'], #btnSalvar, button:has-text('Salvar'), input[type='submit'][value*='Salvar']") != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         // NOVO MÉTODO: Verifica se um código de produto é válido (mais robusto)
         private static bool EhCodigoProdutoValido(string codigo)
         {

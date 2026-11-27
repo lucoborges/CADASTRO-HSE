@@ -199,8 +199,13 @@ namespace HSE.Automation.Services.Produtos.Marcas
 
         private bool DescricaoContemPalavraChave(string descricaoLower, string palavraChave)
         {
-            // Verifica se a palavra-chave está como palavra completa
-            return Regex.IsMatch(descricaoLower, $@"\b{palavraChave}\b", RegexOptions.IgnoreCase);
+            // Verifica se a palavra-chave está como palavra completa. A palavra vem do nome
+            // da marca cadastrado no HSE e pode ter "(", "+", "." etc.: precisa de Escape,
+            // senão um nome como "LENOVO RACKSWITCH G8264CS(R" quebra a busca de toda marca.
+            // (?<!\w)/(?!\w) em vez de \b para também funcionar quando ela começa ou
+            // termina com símbolo.
+            if (string.IsNullOrWhiteSpace(palavraChave)) return false;
+            return Regex.IsMatch(descricaoLower, $@"(?<!\w){Regex.Escape(palavraChave)}(?!\w)", RegexOptions.IgnoreCase);
         }
 
         private bool DescricaoContemMarcaCompleta(string descricaoLower, string nomeMarcaLower)

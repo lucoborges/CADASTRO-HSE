@@ -51,9 +51,11 @@ namespace HSE.Automation.Services.Produtos
         private static Dictionary<string, string> _marcasDisponiveis;
         private static bool _emModoFornecedor = false;
         private static bool _processando = false;
-        private static readonly object _processamentoLock = new object();
-        private static int _processosAtivos = 0;
+        // Quantos cadastros podem usar o HSE ao mesmo tempo. Com 8 simultâneos
+        // (26/11/2026 10:30) o HSE deixou um formulário sem resposta ao Salvar;
+        // os pedidos acima do limite esperam a vez em fila.
         private const int MAX_PARALELO = 4;
+        private static readonly SemaphoreSlim _vagasHse = new SemaphoreSlim(MAX_PARALELO, MAX_PARALELO);
 
         // Estatísticas
         private static class Estatisticas
@@ -175,6 +177,7 @@ namespace HSE.Automation.Services.Produtos
             IPlaywright playwright = null;
             IBrowser browser = null;
             IPage paginaPrincipal = null;
+            bool temVaga = false;
 
             try
             {
@@ -195,6 +198,16 @@ namespace HSE.Automation.Services.Produtos
                         produtoRequest.Descricao,
                         produtoRequest.RequestId);
                 }
+
+                // Espera a vez se já houver MAX_PARALELO cadastros no HSE.
+                // Depois da espera, ProcessarTarefaAutomaticamente confere o banco
+                // de novo, então um item igual cadastrado na fila não duplica.
+                if (_vagasHse.CurrentCount == 0)
+                {
+                    Console.WriteLine($"⏳ [{produtoRequest.RequestId}] {MAX_PARALELO} cadastros em andamento — aguardando vaga...");
+                }
+                await _vagasHse.WaitAsync();
+                temVaga = true;
 
                 // Cria navegador independente
                 playwright = await Playwright.CreateAsync();
@@ -234,7 +247,7 @@ namespace HSE.Automation.Services.Produtos
                 if (playwright != null) playwright.Dispose();
 
                 // Libera vaga
-                lock (_processamentoLock) { _processosAtivos--; }
+                if (temVaga) _vagasHse.Release();
             }
         }
         private static async Task<ProdutoResponseModel> ProcessarTarefaAutomaticamente(
@@ -457,7 +470,12 @@ namespace HSE.Automation.Services.Produtos
                     Console.WriteLine($"❌ FALHA: Não conseguiu gerar/salvar código");
                 }
 
-                Console.WriteLine($"💥 Erro no ProcessarTarefaAutomaticamente: {ex.Message}");
+                Console.WriteLine($"💥 [{produtoRequest.RequestId}] Erro no ProcessarTarefaAutomaticamente: {ex.Message}");
+
+                // Guarda o que estava na tela para diagnóstico (a aba é fechada no finally)
+                await SalvarDiagnosticoFalha(
+                    paginaCadastro != null && !paginaCadastro.IsClosed ? paginaCadastro : paginaPrincipal,
+                    produtoRequest.RequestId);
                 throw;
             }
             finally
@@ -476,9 +494,64 @@ namespace HSE.Automation.Services.Produtos
             }
         }
 
+        private static string UrlSegura(IPage pagina)
+        {
+            try { return pagina == null ? "(sem página)" : pagina.IsClosed ? "(aba fechada)" : pagina.Url; }
+            catch { return "(indisponível)"; }
+        }
+
+        /// <summary>
+        /// Salva print, HTML e URL da página em logs\falhas\ quando um cadastro falha.
+        /// Nunca lança erro: diagnóstico não pode mudar o resultado do cadastro.
+        /// </summary>
+        private static async Task SalvarDiagnosticoFalha(IPage pagina, string requestId)
+        {
+            try
+            {
+                string pasta = Path.Combine(AppConfig.LogsPasta, "falhas");
+                Directory.CreateDirectory(pasta);
+
+                // Apaga diagnósticos antigos (mesma retenção dos logs)
+                foreach (var antigo in Directory.GetFiles(pasta))
+                {
+                    try
+                    {
+                        if (File.GetLastWriteTime(antigo) < DateTime.Now.AddDays(-AppConfig.LogsDiasRetencao))
+                            File.Delete(antigo);
+                    }
+                    catch { }
+                }
+
+                string idSeguro = string.Concat((requestId ?? "sem-id").Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+                string baseNome = Path.Combine(pasta, $"{DateTime.Now:yyyyMMdd-HHmmss}-{idSeguro}");
+
+                await File.WriteAllTextAsync(baseNome + ".txt", $"RequestId: {requestId}\r\nURL: {UrlSegura(pagina)}\r\n");
+
+                if (pagina == null || pagina.IsClosed)
+                {
+                    Console.WriteLine($"📸 Diagnóstico salvo (sem página aberta): {baseNome}.txt");
+                    return;
+                }
+
+                await pagina.ScreenshotAsync(new PageScreenshotOptions { Path = baseNome + ".png", FullPage = true, Timeout = 10000 });
+                await File.WriteAllTextAsync(baseNome + ".html", await pagina.ContentAsync());
+                Console.WriteLine($"📸 Diagnóstico da falha salvo: {baseNome}.png/.html/.txt");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Não foi possível salvar o diagnóstico da falha: {ex.Message}");
+            }
+        }
+
+        public const string MensagemFormularioSumiu =
+            "O formulário saiu da tela depois de clicar em Salvar e o HSE não mostrou o código. " +
+            "O produto pode ou não ter sido gravado: confira no HSE antes de reenviar.";
+
         private static async Task<(bool Sucesso, string MensagemErro, int TentativaAtual)>
             SalvarProdutoComVerificacaoMelhorada(IPage paginaCadastro)
         {
+            bool jaClicouSalvar = false;
+
             for (int tentativa = 1; tentativa <= Config.MaxTentativasPorProduto; tentativa++)
             {
                 try
@@ -491,6 +564,15 @@ namespace HSE.Automation.Services.Produtos
                     {
                         Console.WriteLine($"   ✅ JÁ ESTÁ SALVO! Pulando tentativa de salvar.");
                         return (true, null, tentativa);
+                    }
+
+                    // Depois de um clique em Salvar, se a página não é mais o formulário
+                    // (aba fechada, recarregada, erro ou login), não há onde clicar de novo,
+                    // e não dá para saber se o HSE gravou. Para aqui, sem repetir o clique.
+                    if (jaClicouSalvar && !await FormularioHelper.FormularioEstaNaTela(paginaCadastro))
+                    {
+                        Console.WriteLine($"   ❌ Formulário não está mais na tela (URL: {UrlSegura(paginaCadastro)})");
+                        return (false, MensagemFormularioSumiu, tentativa);
                     }
 
                     // Procura botão de salvar
@@ -523,7 +605,9 @@ namespace HSE.Automation.Services.Produtos
                             $"antes-salvar-{DateTime.Now:HHmmss}.png", false);
                     }
 
-                    // Clica no botão de salvar
+                    // Clica no botão de salvar. Marca antes do clique: se ele lançar erro
+                    // no meio, o HSE pode ter recebido o envio mesmo assim.
+                    jaClicouSalvar = true;
                     await botaoSalvar.ClickAsync();
 
                     // Aguarda processamento
